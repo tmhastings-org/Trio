@@ -2,7 +2,7 @@ import CoreData
 import Foundation
 import LoopKit
 import Swinject
-import TrioAnalyzerKit
+import TrioAnalyzer
 
 /// Builds `LoopCycleData` and `TrioSettingsProfile` from Trio's live data sources.
 ///

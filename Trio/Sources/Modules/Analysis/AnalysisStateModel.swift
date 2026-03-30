@@ -1,6 +1,6 @@
 import Observation
 import SwiftUI
-import TrioAnalyzerKit
+import TrioAnalyzer
 
 extension Analysis {
     @Observable final class StateModel: BaseStateModel<Provider> {

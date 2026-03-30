@@ -1,5 +1,5 @@
 import Foundation
-import TrioAnalyzerKit
+import TrioAnalyzer
 
 enum Analysis {
     enum Config {}
