@@ -278,6 +278,17 @@ extension Settings {
                         }
                     ).listRowBackground(Color.chart)
 
+                    Section(
+                        header: Text("Settings Analysis"),
+                        content: {
+                            Text(String(
+                                localized: "Analyze Settings",
+                                comment: "Analyze Settings menu item in Trio Settings Root View"
+                            ))
+                                .navigationLink(to: .analysis, from: self)
+                        }
+                    ).listRowBackground(Color.chart)
+
                 } else {
                     Section(
                         header: Text("Search Results"),
