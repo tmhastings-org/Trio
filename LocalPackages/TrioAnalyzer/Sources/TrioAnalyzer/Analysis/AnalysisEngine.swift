@@ -19,7 +19,8 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
 
         guard !cycles.isEmpty else {
             return emptyReport(settings: settings, userProfile: userProfile, warnings: [
-                AnalysisWarning(severity: .critical, message: "No loop cycle data found in the provided log files.")])
+                AnalysisWarning(severity: .critical, message: "No loop cycle data found in the provided log files.")
+            ])
         }
 
         // DIA gate: the exponential insulin model used in Trio is calibrated for 9–10 hours.
@@ -27,11 +28,14 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
         // BGI, and deviation calculations are all affected. No analysis result can be trusted.
         guard settings.dia >= AnalysisThresholds.minimumDIA else {
             return emptyReport(settings: settings, userProfile: userProfile, warnings: [
-                AnalysisWarning(severity: .critical,
+                AnalysisWarning(
+                    severity: .critical,
                     message: "DIA is set to \(settings.dia) hours. Trio's exponential insulin model " +
-                    "requires a DIA of 9–10 hours. Below \(AnalysisThresholds.minimumDIA) hours, IOB is " +
-                    "significantly understated and every analysis result — basal, ISF, and CR — would be " +
-                    "unreliable. Correct your DIA setting in Trio, export fresh data, and re-run analysis.")])
+                        "requires a DIA of 9–10 hours. Below \(AnalysisThresholds.minimumDIA) hours, IOB is " +
+                        "significantly understated and every analysis result — basal, ISF, and CR — would be " +
+                        "unreliable. Correct your DIA setting in Trio, export fresh data, and re-run analysis."
+                )
+            ])
         }
 
         // Lyumjev warning: default ultra-rapid peak time (55 min) is too slow for Lyumjev.
@@ -39,11 +43,14 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
         // used in the logarithmic formula will be slightly off (65 vs 75), and ISF timing
         // in correction-response analysis will be imprecise.
         if let name = settings.insulinName, name.lowercased().contains("lyumjev"),
-           !settings.useCustomPeakTime {
-            warnings.append(AnalysisWarning(severity: .caution,
+           !settings.useCustomPeakTime
+        {
+            warnings.append(AnalysisWarning(
+                severity: .caution,
                 message: "Lyumjev detected. Its published insulin peak (~45 min) is faster than the " +
-                "ultra-rapid default (55 min) used when 'Use Custom Peak Time' is disabled. " +
-                "For best accuracy, enable 'Use Custom Peak Time' in Trio and set it to 45 minutes."))
+                    "ultra-rapid default (55 min) used when 'Use Custom Peak Time' is disabled. " +
+                    "For best accuracy, enable 'Use Custom Peak Time' in Trio and set it to 45 minutes."
+            ))
         }
 
         let sorted = cycles.sorted { $0.determination.timestamp < $1.determination.timestamp }
@@ -55,12 +62,14 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
         }
 
         // Warn no-carb users about analysis limitations
-        if detectedType.inferredType == .noEntry && detectedType.uamActivePercentage > 60 {
+        if detectedType.inferredType == .noEntry, detectedType.uamActivePercentage > 60 {
             let uamInt = Int(NSDecimalNumber(decimal: detectedType.uamActivePercentage).doubleValue.rounded())
-            warnings.append(AnalysisWarning(severity: .caution,
+            warnings.append(AnalysisWarning(
+                severity: .caution,
                 message: "UAM is active \(uamInt)% of the time. " +
-                "Without carb entries, the tool cannot distinguish basal errors from meal-related glucose rises. " +
-                "Basal recommendations are limited to periods where UAM is inactive."))
+                    "Without carb entries, the tool cannot distinguish basal errors from meal-related glucose rises. " +
+                    "Basal recommendations are limited to periods where UAM is inactive."
+            ))
         }
 
         // Step 2: Classify windows
@@ -70,7 +79,9 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
         let mealEvents: [MealEvent]?
         let skipCR: Bool
         switch detectedType.inferredType {
-        case .noEntry, .manualBolusOnly: mealEvents = nil; skipCR = true
+        case .manualBolusOnly,
+             .noEntry: mealEvents = nil
+            skipCR = true
         default:
             mealEvents = mealEventDetector.detect(cycles: sorted, settings: settings, userType: detectedType)
             skipCR = false
@@ -82,18 +93,26 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
         // Step 5: ISF analysis (mode-specific)
         var isfScore = isfAnalyzer.analyze(classified: classified, settings: settings)
         if basalScore.needsAdjustment {
-            isfScore = downgradeConfidence(isfScore,
-                reason: "ISF analysis may be affected by basal rate errors detected in this dataset.")
+            isfScore = downgradeConfidence(
+                isfScore,
+                reason: "ISF analysis may be affected by basal rate errors detected in this dataset."
+            )
         }
 
         // Step 6: CR analysis
-        var crScore: SettingScore? = nil
+        var crScore: SettingScore?
         if !skipCR, let meals = mealEvents {
-            var raw = crAnalyzer.analyze(classified: classified, mealEvents: meals,
-                                          settings: settings, carbCountingConfidence: userProfile.carbCountingConfidence)
+            var raw = crAnalyzer.analyze(
+                classified: classified,
+                mealEvents: meals,
+                settings: settings,
+                carbCountingConfidence: userProfile.carbCountingConfidence
+            )
             if basalScore.needsAdjustment || isfScore.needsAdjustment {
-                raw = downgradeConfidence(raw,
-                    reason: "CR analysis may be affected by \(basalScore.needsAdjustment ? "basal" : "ISF") errors.")
+                raw = downgradeConfidence(
+                    raw,
+                    reason: "CR analysis may be affected by \(basalScore.needsAdjustment ? "basal" : "ISF") errors."
+                )
             }
             crScore = raw
         }
@@ -101,7 +120,8 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
         // Step 7: Priority decision
         let (priority, recs) = buildPriority(
             basalScore: basalScore, isfScore: isfScore, crScore: crScore,
-            settings: settings, userType: detectedType, userProfile: userProfile, warnings: &warnings)
+            settings: settings, userType: detectedType, userProfile: userProfile, warnings: &warnings
+        )
 
         return AnalysisReport(
             analysisDate: Date(),
@@ -114,7 +134,8 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
             dynamicISFMode: settings.dynamicISFMode,
             basalScore: basalScore, isfScore: isfScore, crScore: crScore,
             prioritySetting: priority, recommendations: recs,
-            mealEvents: mealEvents, warnings: warnings)
+            mealEvents: mealEvents, warnings: warnings
+        )
     }
 
     // MARK: - Priority Logic
@@ -124,62 +145,73 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
         settings: TrioSettingsProfile, userType: DetectedUserType,
         userProfile: UserProfile, warnings: inout [AnalysisWarning]
     ) -> (SettingPriority?, [SettingRecommendation]) {
-
         // Case 1: Basal needs adjustment
-        if basalScore.needsAdjustment && basalScore.confidence != .insufficient {
+        if basalScore.needsAdjustment, basalScore.confidence != .insufficient {
             let recs = buildBasalRecommendations(basalScore, settings: settings)
 
             if isfScore.needsAdjustment || crScore?.needsAdjustment == true {
                 let isfLabel = isfScore.isAFRecommendation ? "Adjustment Factor" : "ISF"
-                warnings.append(AnalysisWarning(severity: .info,
-                    message: "\(isfLabel) may also need adjustment, but basal must be corrected first. Re-analyze after 48 hours with updated basals."))
+                warnings.append(AnalysisWarning(
+                    severity: .info,
+                    message: "\(isfLabel) may also need adjustment, but basal must be corrected first. Re-analyze after 48 hours with updated basals."
+                ))
             }
             return (.basal, recs)
         }
 
         // Case 2: ISF / AF needs adjustment
-        if isfScore.needsAdjustment && isfScore.confidence != .insufficient {
+        if isfScore.needsAdjustment, isfScore.confidence != .insufficient {
             let priority: SettingPriority = isfScore.isAFRecommendation ? .adjustmentFactor : .isf
             let recs = buildISFRecommendations(isfScore, settings: settings)
 
             if crScore?.needsAdjustment == true {
-                warnings.append(AnalysisWarning(severity: .info,
-                    message: "CR may also need adjustment, but \(isfScore.isAFRecommendation ? "AF" : "ISF") must be corrected first. Re-analyze after 48 hours."))
+                warnings.append(AnalysisWarning(
+                    severity: .info,
+                    message: "CR may also need adjustment, but \(isfScore.isAFRecommendation ? "AF" : "ISF") must be corrected first. Re-analyze after 48 hours."
+                ))
             }
             return (priority, recs)
         }
 
         // Case 3: CR needs adjustment
-        if let crScore = crScore, crScore.needsAdjustment && crScore.confidence != .insufficient {
+        if let crScore = crScore, crScore.needsAdjustment, crScore.confidence != .insufficient {
             if userProfile.carbCountingConfidence == .rough {
-                warnings.append(AnalysisWarning(severity: .caution,
-                    message: "You indicated your carb counting is rough estimates. Improving counting consistency would likely help more than adjusting CR."))
+                warnings.append(AnalysisWarning(
+                    severity: .caution,
+                    message: "You indicated your carb counting is rough estimates. Improving counting consistency would likely help more than adjusting CR."
+                ))
             }
-            if settings.useFPUConversion && userType.hasFPUEntries {
-                warnings.append(AnalysisWarning(severity: .caution,
-                    message: "You use fat/protein conversion. Meal outcome errors may be from FPU settings rather than CR itself."))
+            if settings.useFPUConversion, userType.hasFPUEntries {
+                warnings.append(AnalysisWarning(
+                    severity: .caution,
+                    message: "You use fat/protein conversion. Meal outcome errors may be from FPU settings rather than CR itself."
+                ))
             }
             let recs = buildCRRecommendations(crScore, settings: settings)
             return (.cr, recs)
         }
 
         // Case 4: All clean
-        if basalScore.confidence != .insufficient && isfScore.confidence != .insufficient {
-            warnings.append(AnalysisWarning(severity: .info,
-                message: "Your settings appear well-tuned based on the available data. No adjustments recommended."))
+        if basalScore.confidence != .insufficient, isfScore.confidence != .insufficient {
+            warnings.append(AnalysisWarning(
+                severity: .info,
+                message: "Your settings appear well-tuned based on the available data. No adjustments recommended."
+            ))
         }
         return (nil, [])
     }
 
     // MARK: - Recommendation Builders
 
-    private func buildBasalRecommendations(_ score: SettingScore, settings: TrioSettingsProfile) -> [SettingRecommendation] {
+    private func buildBasalRecommendations(_ score: SettingScore, settings _: TrioSettingsProfile) -> [SettingRecommendation] {
         score.timeBlockAnalyses.compactMap { block -> SettingRecommendation? in
             guard let _ = block.suggestedValue, let adjPct = block.adjustmentPercent,
                   block.cleanDataPoints >= AnalysisThresholds.minimumDataPointsPerBlock else { return nil }
 
-            let capped = max(-AnalysisThresholds.maxAdjustmentPercent,
-                              min(AnalysisThresholds.maxAdjustmentPercent, adjPct))
+            let capped = max(
+                -AnalysisThresholds.maxAdjustmentPercent,
+                min(AnalysisThresholds.maxAdjustmentPercent, adjPct)
+            )
             let cappedVal = block.currentProfileValue * (1 + capped / 100)
             let rounded = roundBasal(cappedVal)
             guard rounded != block.currentProfileValue else { return nil }
@@ -193,10 +225,17 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
             rationale += "suggesting basal is \(block.medianDeviation > 0 ? "too low" : "too high"). "
             rationale += "Recommended \(dir) of \(roundPct(abs(capped)))%."
 
-            return SettingRecommendation(setting: .basal, timeBlockLabel: block.blockLabel,
-                currentValue: block.currentProfileValue, suggestedValue: rounded,
-                adjustmentPercent: capped, uncappedAdjustmentPercent: adjPct,
-                confidence: conf, cleanDataPoints: block.cleanDataPoints, rationale: rationale)
+            return SettingRecommendation(
+                setting: .basal,
+                timeBlockLabel: block.blockLabel,
+                currentValue: block.currentProfileValue,
+                suggestedValue: rounded,
+                adjustmentPercent: capped,
+                uncappedAdjustmentPercent: adjPct,
+                confidence: conf,
+                cleanDataPoints: block.cleanDataPoints,
+                rationale: rationale
+            )
         }
     }
 
@@ -208,18 +247,26 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
         return score.timeBlockAnalyses.compactMap { block -> SettingRecommendation? in
             guard let _ = block.suggestedValue, let adjPct = block.adjustmentPercent else { return nil }
 
-            let capped = max(-AnalysisThresholds.maxAdjustmentPercent,
-                              min(AnalysisThresholds.maxAdjustmentPercent, adjPct))
+            let capped = max(
+                -AnalysisThresholds.maxAdjustmentPercent,
+                min(AnalysisThresholds.maxAdjustmentPercent, adjPct)
+            )
             let cappedVal = block.currentProfileValue * (1 + capped / 100)
             let rounded = settings.glucoseUnits == .mgdL
                 ? cappedVal.rounded() : (cappedVal * 10).rounded() / 10
             guard rounded != block.currentProfileValue else { return nil }
 
-            return SettingRecommendation(setting: .isf, timeBlockLabel: block.blockLabel,
-                currentValue: block.currentProfileValue, suggestedValue: rounded,
-                adjustmentPercent: capped, uncappedAdjustmentPercent: adjPct,
-                confidence: score.confidence, cleanDataPoints: block.cleanDataPoints,
-                rationale: buildISFRationale(block: block, score: score, settings: settings))
+            return SettingRecommendation(
+                setting: .isf,
+                timeBlockLabel: block.blockLabel,
+                currentValue: block.currentProfileValue,
+                suggestedValue: rounded,
+                adjustmentPercent: capped,
+                uncappedAdjustmentPercent: adjPct,
+                confidence: score.confidence,
+                cleanDataPoints: block.cleanDataPoints,
+                rationale: buildISFRationale(block: block, score: score, settings: settings)
+            )
         }
     }
 
@@ -232,8 +279,10 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
         // Case A: Empirical analysis produced a specific implied AF target
         if let impliedAF = score.suggestedAF {
             let uncappedPct = ((impliedAF - currentAF) / currentAF) * 100
-            let cappedPct = max(-AnalysisThresholds.maxAdjustmentPercent,
-                                 min(AnalysisThresholds.maxAdjustmentPercent, uncappedPct))
+            let cappedPct = max(
+                -AnalysisThresholds.maxAdjustmentPercent,
+                min(AnalysisThresholds.maxAdjustmentPercent, uncappedPct)
+            )
             let cappedAF = (currentAF * (1 + cappedPct / 100) * 100).rounded() / 100
 
             let tddStr = score.medianTDD.map { "\(roundAF($0))" } ?? "unknown"
@@ -257,8 +306,10 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
             if score.timeBlockAnalyses.count > 1 {
                 return score.timeBlockAnalyses.compactMap { block -> SettingRecommendation? in
                     guard let blockAF = block.suggestedValue, let adjPct = block.adjustmentPercent else { return nil }
-                    let blockCapped = max(-AnalysisThresholds.maxAdjustmentPercent,
-                                          min(AnalysisThresholds.maxAdjustmentPercent, adjPct))
+                    let blockCapped = max(
+                        -AnalysisThresholds.maxAdjustmentPercent,
+                        min(AnalysisThresholds.maxAdjustmentPercent, adjPct)
+                    )
                     let blockCappedAF = (currentAF * (1 + blockCapped / 100) * 100).rounded() / 100
                     return SettingRecommendation(
                         setting: .adjustmentFactor, timeBlockLabel: block.blockLabel,
@@ -289,7 +340,8 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
             rationale += "This means the formula consistently wants a more aggressive ISF than the ceiling allows. "
             rationale += "Two possible causes: (1) Adjustment Factor (\(currentAF)) is too low, "
             rationale += "or (2) autosens_max is set too low for this user's typical BG range. "
-            rationale += "Collect more data to determine which — if correction events show the current AF is calibrated correctly, "
+            rationale +=
+                "Collect more data to determine which — if correction events show the current AF is calibrated correctly, "
             rationale += "consider raising autosens_max instead."
         case .decrease:
             rationale = "autosens_min (\(settings.autosensMin)) is being hit in \(score.limitHitPercentage)% of cycles. "
@@ -310,32 +362,40 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
     }
 
     private func roundAF(_ value: Decimal) -> Decimal {
-        (value * 100).rounded() / 100   // 2 decimal places
+        (value * 100).rounded() / 100 // 2 decimal places
     }
 
     private func roundPct(_ value: Decimal) -> Decimal {
-        (value * 10).rounded() / 10     // 1 decimal place
+        (value * 10).rounded() / 10 // 1 decimal place
     }
 
-    private func buildCRRecommendations(_ score: SettingScore, settings: TrioSettingsProfile) -> [SettingRecommendation] {
+    private func buildCRRecommendations(_ score: SettingScore, settings _: TrioSettingsProfile) -> [SettingRecommendation] {
         score.timeBlockAnalyses.compactMap { block -> SettingRecommendation? in
             guard let _ = block.suggestedValue, let adjPct = block.adjustmentPercent else { return nil }
-            let capped = max(-AnalysisThresholds.maxAdjustmentPercent,
-                              min(AnalysisThresholds.maxAdjustmentPercent, adjPct))
+            let capped = max(
+                -AnalysisThresholds.maxAdjustmentPercent,
+                min(AnalysisThresholds.maxAdjustmentPercent, adjPct)
+            )
             let rounded = (block.currentProfileValue * (1 + capped / 100) * 10).rounded() / 10
             guard rounded != block.currentProfileValue else { return nil }
 
-            return SettingRecommendation(setting: .cr, timeBlockLabel: block.blockLabel,
-                currentValue: block.currentProfileValue, suggestedValue: rounded,
-                adjustmentPercent: capped, uncappedAdjustmentPercent: adjPct,
-                confidence: score.confidence, cleanDataPoints: block.cleanDataPoints,
-                rationale: "Meal outcomes suggest CR adjustment of \(roundPct(abs(capped)))%.")
+            return SettingRecommendation(
+                setting: .cr,
+                timeBlockLabel: block.blockLabel,
+                currentValue: block.currentProfileValue,
+                suggestedValue: rounded,
+                adjustmentPercent: capped,
+                uncappedAdjustmentPercent: adjPct,
+                confidence: score.confidence,
+                cleanDataPoints: block.cleanDataPoints,
+                rationale: "Meal outcomes suggest CR adjustment of \(roundPct(abs(capped)))%."
+            )
         }
     }
 
     // MARK: - Helpers
 
-    private func buildISFRationale(block: TimeBlockAnalysis, score: SettingScore, settings: TrioSettingsProfile) -> String {
+    private func buildISFRationale(block: TimeBlockAnalysis, score _: SettingScore, settings: TrioSettingsProfile) -> String {
         var r = "Based on \(block.cleanDataPoints) data points, "
         if settings.dynamicISFMode == .sigmoid {
             let ratio = block.medianSensitivityRatio
@@ -358,39 +418,80 @@ struct TrioSettingsAnalyzer: SettingsAnalyzer {
         return r
     }
 
-    private func downgradeConfidence(_ score: SettingScore, reason: String) -> SettingScore {
+    private func downgradeConfidence(_ score: SettingScore, reason _: String) -> SettingScore {
         let new: ConfidenceLevel
         switch score.confidence {
-        case .high: new = .moderate; case .moderate: new = .low; default: new = .insufficient
+        case .high: new = .moderate
+        case .moderate: new = .low
+        default: new = .insufficient
         }
-        return SettingScore(setting: score.setting, score: score.score, needsAdjustment: score.needsAdjustment,
-                            confidence: new, limitHitPercentage: score.limitHitPercentage,
-                            cleanDataPointsTotal: score.cleanDataPointsTotal, timeBlockAnalyses: score.timeBlockAnalyses,
-                            isAFRecommendation: score.isAFRecommendation, afDirection: score.afDirection,
-                            medianTDD: score.medianTDD, suggestedAF: score.suggestedAF)
+        return SettingScore(
+            setting: score.setting,
+            score: score.score,
+            needsAdjustment: score.needsAdjustment,
+            confidence: new,
+            limitHitPercentage: score.limitHitPercentage,
+            cleanDataPointsTotal: score.cleanDataPointsTotal,
+            timeBlockAnalyses: score.timeBlockAnalyses,
+            isAFRecommendation: score.isAFRecommendation,
+            afDirection: score.afDirection,
+            medianTDD: score.medianTDD,
+            suggestedAF: score.suggestedAF
+        )
     }
 
     private func roundBasal(_ value: Decimal) -> Decimal {
-        (value * 20).rounded() / 20  // 0.05 increments
+        (value * 20).rounded() / 20 // 0.05 increments
     }
 
-    private func emptyReport(settings: TrioSettingsProfile, userProfile: UserProfile, warnings: [AnalysisWarning]) -> AnalysisReport {
-        let empty = SettingScore(setting: .basal, score: 0, needsAdjustment: false,
-                                  confidence: .insufficient, limitHitPercentage: 0,
-                                  cleanDataPointsTotal: 0, timeBlockAnalyses: [])
-        return AnalysisReport(analysisDate: Date(), dataRangeStart: Date(), dataRangeEnd: Date(),
-                               totalLoopCycles: 0, settingsTimestamp: nil,
-                               userProfile: userProfile,
-                               detectedUserType: DetectedUserType(hasCarbEntries: false, hasFPUEntries: false,
-                                   hasManualBoluses: false, medianCarbEntrySize: nil, uamActivePercentage: 0,
-                                   inferredType: userProfile.mealHandling, agreesWithUserReport: true, disagreementNote: nil),
-                               dynamicISFMode: settings.dynamicISFMode,
-                               basalScore: empty,
-                               isfScore: SettingScore(setting: .isf, score: 0, needsAdjustment: false,
-                                   confidence: .insufficient, limitHitPercentage: 0,
-                                   cleanDataPointsTotal: 0, timeBlockAnalyses: []),
-                               crScore: nil, prioritySetting: nil, recommendations: [],
-                               mealEvents: nil, warnings: warnings)
+    private func emptyReport(
+        settings: TrioSettingsProfile,
+        userProfile: UserProfile,
+        warnings: [AnalysisWarning]
+    ) -> AnalysisReport {
+        let empty = SettingScore(
+            setting: .basal,
+            score: 0,
+            needsAdjustment: false,
+            confidence: .insufficient,
+            limitHitPercentage: 0,
+            cleanDataPointsTotal: 0,
+            timeBlockAnalyses: []
+        )
+        return AnalysisReport(
+            analysisDate: Date(),
+            dataRangeStart: Date(),
+            dataRangeEnd: Date(),
+            totalLoopCycles: 0,
+            settingsTimestamp: nil,
+            userProfile: userProfile,
+            detectedUserType: DetectedUserType(
+                hasCarbEntries: false,
+                hasFPUEntries: false,
+                hasManualBoluses: false,
+                medianCarbEntrySize: nil,
+                uamActivePercentage: 0,
+                inferredType: userProfile.mealHandling,
+                agreesWithUserReport: true,
+                disagreementNote: nil
+            ),
+            dynamicISFMode: settings.dynamicISFMode,
+            basalScore: empty,
+            isfScore: SettingScore(
+                setting: .isf,
+                score: 0,
+                needsAdjustment: false,
+                confidence: .insufficient,
+                limitHitPercentage: 0,
+                cleanDataPointsTotal: 0,
+                timeBlockAnalyses: []
+            ),
+            crScore: nil,
+            prioritySetting: nil,
+            recommendations: [],
+            mealEvents: nil,
+            warnings: warnings
+        )
     }
 }
 

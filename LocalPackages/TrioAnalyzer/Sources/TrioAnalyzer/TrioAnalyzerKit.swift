@@ -1,7 +1,6 @@
 import Foundation
 
 public enum TrioAnalyzerKit {
-
     /// Run the full analysis pipeline.
     public static func analyze(
         logContents: [String],
@@ -24,9 +23,11 @@ public enum TrioAnalyzerKit {
 
         // Correct Dynamic ISF mode for known CSV bugs
         if let version = settings.appVersion,
-           KnownVersionIssues.csvDynamicISFUnreliable.contains(version) {
+           KnownVersionIssues.csvDynamicISFUnreliable.contains(version)
+        {
             if let detected = TrioSettingsCSVParser.detectDynamicISFFromLogs(logContents),
-               detected != settings.dynamicISFMode {
+               detected != settings.dynamicISFMode
+            {
                 // Reconstruct settings with corrected mode
                 settings = correctedSettings(settings, dynamicISFMode: detected)
             }
@@ -94,27 +95,29 @@ public enum TrioAnalyzerKit {
             if settings.dia < AnalysisThresholds.minimumDIA {
                 issues.append(
                     "DIA is set to \(settings.dia) hours. Analysis requires DIA ≥ \(AnalysisThresholds.minimumDIA) hours. " +
-                    "Trio's exponential insulin model is calibrated for 9–10 hours — a lower value causes IOB to be " +
-                    "significantly understated, making all results unreliable."
+                        "Trio's exponential insulin model is calibrated for 9–10 hours — a lower value causes IOB to be " +
+                        "significantly understated, making all results unreliable."
                 )
             }
             if let name = settings.insulinName, name.lowercased().contains("lyumjev"),
-               !settings.useCustomPeakTime {
+               !settings.useCustomPeakTime
+            {
                 issues.append(
                     "Lyumjev detected without a custom peak time. Lyumjev's peak (~45 min) is faster than the " +
-                    "ultra-rapid default (55 min). Enable 'Use Custom Peak Time' in Trio and set it to 45 minutes " +
-                    "for more accurate analysis."
+                        "ultra-rapid default (55 min). Enable 'Use Custom Peak Time' in Trio and set it to 45 minutes " +
+                        "for more accurate analysis."
                 )
             }
             // Warn when known CSV version bug causes Dynamic ISF mode to be misreported
             if let version = settings.appVersion,
                KnownVersionIssues.csvDynamicISFUnreliable.contains(version),
                let detected = TrioSettingsCSVParser.detectDynamicISFFromLogs(logContents),
-               detected != settings.dynamicISFMode {
+               detected != settings.dynamicISFMode
+            {
                 issues.append(
                     "Dynamic ISF mode in CSV (\(settings.dynamicISFMode.rawValue)) appears to be misreported — " +
-                    "a known export bug in v\(version). Log-based detection indicates: \(detected.rawValue). " +
-                    "Analysis will use the log-detected mode."
+                        "a known export bug in v\(version). Log-based detection indicates: \(detected.rawValue). " +
+                        "Analysis will use the log-detected mode."
                 )
             }
         } else {
@@ -153,22 +156,48 @@ public enum TrioAnalyzerKit {
     }
 
     private static func errorReport(_ message: String) -> AnalysisReport {
-        let empty = SettingScore(setting: .basal, score: 0, needsAdjustment: false,
-                                  confidence: .insufficient, limitHitPercentage: 0,
-                                  cleanDataPointsTotal: 0, timeBlockAnalyses: [])
-        return AnalysisReport(analysisDate: Date(), dataRangeStart: Date(), dataRangeEnd: Date(),
-                               totalLoopCycles: 0, settingsTimestamp: nil,
-                               userProfile: UserProfile(mealHandling: .varies, carbCountingConfidence: .notApplicable),
-                               detectedUserType: DetectedUserType(hasCarbEntries: false, hasFPUEntries: false,
-                                   hasManualBoluses: false, medianCarbEntrySize: nil, uamActivePercentage: 0,
-                                   inferredType: .varies, agreesWithUserReport: true, disagreementNote: nil),
-                               dynamicISFMode: .disabled,
-                               basalScore: empty,
-                               isfScore: SettingScore(setting: .isf, score: 0, needsAdjustment: false,
-                                   confidence: .insufficient, limitHitPercentage: 0,
-                                   cleanDataPointsTotal: 0, timeBlockAnalyses: []),
-                               crScore: nil, prioritySetting: nil, recommendations: [],
-                               mealEvents: nil,
-                               warnings: [AnalysisWarning(severity: .critical, message: message)])
+        let empty = SettingScore(
+            setting: .basal,
+            score: 0,
+            needsAdjustment: false,
+            confidence: .insufficient,
+            limitHitPercentage: 0,
+            cleanDataPointsTotal: 0,
+            timeBlockAnalyses: []
+        )
+        return AnalysisReport(
+            analysisDate: Date(),
+            dataRangeStart: Date(),
+            dataRangeEnd: Date(),
+            totalLoopCycles: 0,
+            settingsTimestamp: nil,
+            userProfile: UserProfile(mealHandling: .varies, carbCountingConfidence: .notApplicable),
+            detectedUserType: DetectedUserType(
+                hasCarbEntries: false,
+                hasFPUEntries: false,
+                hasManualBoluses: false,
+                medianCarbEntrySize: nil,
+                uamActivePercentage: 0,
+                inferredType: .varies,
+                agreesWithUserReport: true,
+                disagreementNote: nil
+            ),
+            dynamicISFMode: .disabled,
+            basalScore: empty,
+            isfScore: SettingScore(
+                setting: .isf,
+                score: 0,
+                needsAdjustment: false,
+                confidence: .insufficient,
+                limitHitPercentage: 0,
+                cleanDataPointsTotal: 0,
+                timeBlockAnalyses: []
+            ),
+            crScore: nil,
+            prioritySetting: nil,
+            recommendations: [],
+            mealEvents: nil,
+            warnings: [AnalysisWarning(severity: .critical, message: message)]
+        )
     }
 }

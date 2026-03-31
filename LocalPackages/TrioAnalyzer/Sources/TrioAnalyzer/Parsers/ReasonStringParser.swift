@@ -6,7 +6,6 @@ import Foundation
 /// (deviation, profileISF, TDD, AF, minPredBG, minGuardBG, dynamic ISF flags).
 /// Centralised here so both the log parser and the Core Data bridge use identical logic.
 internal enum ReasonStringParser {
-
     /// Extracts a decimal value that follows `prefix`, stopping at the first character
     /// in `terminator` (treated as a set of stop characters, not a literal string).
     static func extractDecimal(from reason: String, prefix: String, terminator: String) -> Decimal? {

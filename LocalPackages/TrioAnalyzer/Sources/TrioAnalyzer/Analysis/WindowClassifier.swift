@@ -5,7 +5,6 @@ protocol WindowClassifier {
 }
 
 struct TrioWindowClassifier: WindowClassifier {
-
     func classify(cycles: [LoopCycleData], settings: TrioSettingsProfile, userType: DetectedUserType) -> [WindowClassification] {
         var results: [WindowClassification] = []
         let avgBasal = settings.basalRates.isEmpty ? Decimal(0.5)
@@ -18,16 +17,27 @@ struct TrioWindowClassifier: WindowClassifier {
 
             // Common exclusions
             if ctx?.overrideActive == true || det.reason.contains("Override active") {
-                let r = "Override active"; basalR.append(r); isfR.append(r); crR.append(r)
+                let r = "Override active"
+                basalR.append(r)
+                isfR.append(r)
+                crR.append(r)
             }
             if det.reason.lowercased().contains("temptarget") {
-                let r = "Temp target active"; basalR.append(r); isfR.append(r)
+                let r = "Temp target active"
+                basalR.append(r)
+                isfR.append(r)
             }
             if let bg = det.bg, bg <= 10 || bg == 38 {
-                let r = "CGM error"; basalR.append(r); isfR.append(r); crR.append(r)
+                let r = "CGM error"
+                basalR.append(r)
+                isfR.append(r)
+                crR.append(r)
             }
             if det.reason.contains("CGM is calibrating") || det.reason.contains("CGM data is unchanged") {
-                let r = "CGM data issue"; basalR.append(r); isfR.append(r); crR.append(r)
+                let r = "CGM data issue"
+                basalR.append(r)
+                isfR.append(r)
+                crR.append(r)
             }
 
             // Basal: low IOB, no COB, no UAM
@@ -36,7 +46,7 @@ struct TrioWindowClassifier: WindowClassifier {
             if let iob = det.iob, abs(iob) > avgBasal * Decimal(1.5) { basalR.append("IOB too high") }
 
             // Post-UAM stability for no-carb and manual-bolus users
-            if (userType.inferredType == .noEntry || userType.inferredType == .manualBolusOnly) {
+            if userType.inferredType == .noEntry || userType.inferredType == .manualBolusOnly {
                 if wasRecentlyUAM(index: index, cycles: cycles, minutes: AnalysisThresholds.postUAMStabilityMinutes) {
                     basalR.append("Post-UAM stability window")
                 }
