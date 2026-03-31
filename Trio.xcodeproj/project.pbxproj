@@ -260,7 +260,6 @@
 		3BD9687F2D8DDD8800899469 /* CryptoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 3BD9687E2D8DDD8800899469 /* CryptoSwift */; };
 		3BF85FE32E427312000D7351 /* IOBService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BF85FE12E427312000D7351 /* IOBService.swift */; };
 		3E28F2AB2EB5337F00FB9EEB /* ConnectIQ in Frameworks */ = {isa = PBXBuildFile; productRef = 3E28F2AA2EB5337F00FB9EEB /* ConnectIQ */; };
-		8915402B5DAE41A59760BEC8 /* TrioAnalyzer in Frameworks */ = {isa = PBXBuildFile; productRef = 93467531CD8243ECB5B51103 /* TrioAnalyzer */; };
 		3E62C7822F54CC1B00433237 /* BolusDisplayThreshold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E62C7812F54CC1600433237 /* BolusDisplayThreshold.swift */; };
 		45252C95D220E796FDB3B022 /* ConfigEditorDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8A87AA037BD079BA3528BA /* ConfigEditorDataFlow.swift */; };
 		45717281F743594AA9D87191 /* ConfigEditorRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 920DDB21E5D0EB813197500D /* ConfigEditorRootView.swift */; };
@@ -335,6 +334,7 @@
 		7F7B756BE8543965D9FDF1A2 /* HistoryDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A401509D21F7F35D4E109EDA /* HistoryDataFlow.swift */; };
 		8194B80890CDD6A3C13B0FEE /* SnoozeStateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E26904AACA8D9C15D229D675 /* SnoozeStateModel.swift */; };
 		88AB39B23C9552BD6E0C9461 /* ISFEditorRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB3BAE7494CB771ABAC7B8B /* ISFEditorRootView.swift */; };
+		8915402B5DAE41A59760BEC8 /* TrioAnalyzer in Frameworks */ = {isa = PBXBuildFile; productRef = 93467531CD8243ECB5B51103 /* TrioAnalyzer */; };
 		8A91342A2D63D9A1007F8874 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 8A9134292D63D9A1007F8874 /* Localizable.xcstrings */; };
 		8A91342C2D63D9A2007F8874 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 8A91342B2D63D9A2007F8874 /* InfoPlist.xcstrings */; };
 		8B759CFCF47B392BB365C251 /* BasalProfileEditorDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67F94DD2853CF42BA4E30616 /* BasalProfileEditorDataFlow.swift */; };
@@ -692,6 +692,11 @@
 		DDF6902C2DA028D3008BF16C /* DiagnosticsStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF6902B2DA028D3008BF16C /* DiagnosticsStepView.swift */; };
 		DDF6905C2DA0AFC5008BF16C /* WelcomeStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF6905B2DA0AFC5008BF16C /* WelcomeStepView.swift */; };
 		DDF691012DA2CA11008BF16C /* AppDiagnosticsDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF691002DA2CA0B008BF16C /* AppDiagnosticsDataFlow.swift */; };
+		29B6EDFED4394289AAEF7CEF /* AnalysisDataFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD22D7F4A354B6BB7DF0745 /* AnalysisDataFlow.swift */; };
+		457D9FEF8504406BB2C56A3E /* AnalysisProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3A817C00FA247C09D6C8277 /* AnalysisProvider.swift */; };
+		04EF04332BAD4F97B2DFF694 /* AnalysisStateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ECFD0CB5F8D41A18C5214D6 /* AnalysisStateModel.swift */; };
+		7A99D89F8E9C44C19FAAA51B /* TrioAnalysisBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A150D1D69AC3449BB8B87992 /* TrioAnalysisBridge.swift */; };
+		39DF06F1CE83422F902C8D4B /* AnalysisRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 718BE6A164BA471E8126899E /* AnalysisRootView.swift */; };
 		DDF691032DA2CA1E008BF16C /* AppDiagnosticsProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF691022DA2CA14008BF16C /* AppDiagnosticsProvider.swift */; };
 		DDF691052DA2CA23008BF16C /* AppDiagnosticsStateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF691042DA2CA20008BF16C /* AppDiagnosticsStateModel.swift */; };
 		DDF691072DA2CA2D008BF16C /* AppDiagnosticsRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF691062DA2CA28008BF16C /* AppDiagnosticsRootView.swift */; };
@@ -1534,6 +1539,11 @@
 		DDF6902B2DA028D3008BF16C /* DiagnosticsStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsStepView.swift; sourceTree = "<group>"; };
 		DDF6905B2DA0AFC5008BF16C /* WelcomeStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeStepView.swift; sourceTree = "<group>"; };
 		DDF691002DA2CA0B008BF16C /* AppDiagnosticsDataFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDiagnosticsDataFlow.swift; sourceTree = "<group>"; };
+		DDD22D7F4A354B6BB7DF0745 /* AnalysisDataFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisDataFlow.swift; sourceTree = "<group>"; };
+		A3A817C00FA247C09D6C8277 /* AnalysisProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisProvider.swift; sourceTree = "<group>"; };
+		0ECFD0CB5F8D41A18C5214D6 /* AnalysisStateModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisStateModel.swift; sourceTree = "<group>"; };
+		A150D1D69AC3449BB8B87992 /* TrioAnalysisBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrioAnalysisBridge.swift; sourceTree = "<group>"; };
+		718BE6A164BA471E8126899E /* AnalysisRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisRootView.swift; sourceTree = "<group>"; };
 		DDF691022DA2CA14008BF16C /* AppDiagnosticsProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDiagnosticsProvider.swift; sourceTree = "<group>"; };
 		DDF691042DA2CA20008BF16C /* AppDiagnosticsStateModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDiagnosticsStateModel.swift; sourceTree = "<group>"; };
 		DDF691062DA2CA28008BF16C /* AppDiagnosticsRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDiagnosticsRootView.swift; sourceTree = "<group>"; };
@@ -1908,6 +1918,7 @@
 			children = (
 				DDD163032C4C67B400CD525A /* Adjustments */,
 				DD1745382C55BF8B00211FAC /* AlgorithmAdvancedSettings */,
+				D4C19C25E0644AA28B229CFE /* Analysis */,
 				DDF690FE2DA2C9EE008BF16C /* AppDiagnostics */,
 				DD1745422C55C5C400211FAC /* AutosensSettings */,
 				A42F1FEDFFD0DDE00AAD54D3 /* BasalProfileEditor */,
@@ -3659,6 +3670,26 @@
 			path = AppDiagnostics;
 			sourceTree = "<group>";
 		};
+		D4C19C25E0644AA28B229CFE /* Analysis */ = {
+			isa = PBXGroup;
+			children = (
+				0ECFD0CB5F8D41A18C5214D6 /* AnalysisStateModel.swift */,
+				A3A817C00FA247C09D6C8277 /* AnalysisProvider.swift */,
+				DDD22D7F4A354B6BB7DF0745 /* AnalysisDataFlow.swift */,
+				A150D1D69AC3449BB8B87992 /* TrioAnalysisBridge.swift */,
+				786AF9B14C82402FB95752B8 /* View */,
+			);
+			path = Analysis;
+			sourceTree = "<group>";
+		};
+		786AF9B14C82402FB95752B8 /* View */ = {
+			isa = PBXGroup;
+			children = (
+				718BE6A164BA471E8126899E /* AnalysisRootView.swift */,
+			);
+			path = View;
+			sourceTree = "<group>";
+		};
 		DDF690FF2DA2CA03008BF16C /* View */ = {
 			isa = PBXGroup;
 			children = (
@@ -4023,7 +4054,7 @@
 				3B47C60E2DA0A28F00B0E5EF /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 				DD868FD92E381E1C005D3308 /* XCRemoteSwiftPackageReference "Swift-JWT" */,
 				3E28F2A92EB5337F00FB9EEB /* XCRemoteSwiftPackageReference "connectiq-companion-app-sdk-ios" */,
-				AEC00AFCFBE448609978FF1E /* XCLocalSwiftPackageReference "TrioAnalyzer" */,
+				AEC00AFCFBE448609978FF1E /* XCLocalSwiftPackageReference "LocalPackages/TrioAnalyzer" */,
 			);
 			productRefGroup = 388E595925AD948C0019842D /* Products */;
 			projectDirPath = "";
@@ -4330,6 +4361,11 @@
 				DD6A4E802DBEC3EE008C4B26 /* StartupForceCloseWarningStepView.swift in Sources */,
 				DDA6E2852D2361F800C2988C /* LoopStatusView.swift in Sources */,
 				DDF691012DA2CA11008BF16C /* AppDiagnosticsDataFlow.swift in Sources */,
+				29B6EDFED4394289AAEF7CEF /* AnalysisDataFlow.swift in Sources */,
+				457D9FEF8504406BB2C56A3E /* AnalysisProvider.swift in Sources */,
+				04EF04332BAD4F97B2DFF694 /* AnalysisStateModel.swift in Sources */,
+				7A99D89F8E9C44C19FAAA51B /* TrioAnalysisBridge.swift in Sources */,
+				39DF06F1CE83422F902C8D4B /* AnalysisRootView.swift in Sources */,
 				DDA6E3202D258E0500C2988C /* OverrideHelpView.swift in Sources */,
 				DDA6E2502D22187500C2988C /* ChartLegendView.swift in Sources */,
 				49239B432EEA27AD00469145 /* TempTargetCalculations.swift in Sources */,
@@ -5030,7 +5066,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPER_TEAM = "$(DEVELOPER_TEAM)";
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = 54D5ZWZGJG;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Trio/Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -5075,7 +5111,7 @@
 				CURRENT_PROJECT_VERSION = $APP_BUILD_NUMBER;
 				DEVELOPER_TEAM = "$(DEVELOPER_TEAM)";
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = 54D5ZWZGJG;
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Trio/Resources/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -5110,7 +5146,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = 54D5ZWZGJG;
 				INFOPLIST_FILE = TrioTests/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -5131,7 +5167,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = 54D5ZWZGJG;
 				INFOPLIST_FILE = TrioTests/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -5156,7 +5192,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = 54D5ZWZGJG;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -5190,7 +5226,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = 54D5ZWZGJG;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -5224,7 +5260,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = 54D5ZWZGJG;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -5261,7 +5297,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = 54D5ZWZGJG;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -5298,7 +5334,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
 				DEVELOPMENT_ASSET_PATHS = "\"Trio Watch App Extension/Preview Content\"";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = 54D5ZWZGJG;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -5335,7 +5371,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
 				DEVELOPMENT_ASSET_PATHS = "\"Trio Watch App Extension/Preview Content\"";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = 54D5ZWZGJG;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -5368,7 +5404,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = 54D5ZWZGJG;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -5394,7 +5430,7 @@
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = "$(APP_BUILD_NUMBER)";
-				DEVELOPMENT_TEAM = "$(DEVELOPER_TEAM)";
+				DEVELOPMENT_TEAM = 54D5ZWZGJG;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -5480,7 +5516,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		AEC00AFCFBE448609978FF1E /* XCLocalSwiftPackageReference "TrioAnalyzer" */ = {
+		AEC00AFCFBE448609978FF1E /* XCLocalSwiftPackageReference "LocalPackages/TrioAnalyzer" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = LocalPackages/TrioAnalyzer;
 		};
@@ -5618,6 +5654,11 @@
 			package = 3E28F2A92EB5337F00FB9EEB /* XCRemoteSwiftPackageReference "connectiq-companion-app-sdk-ios" */;
 			productName = ConnectIQ;
 		};
+		93467531CD8243ECB5B51103 /* TrioAnalyzer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AEC00AFCFBE448609978FF1E /* XCLocalSwiftPackageReference "LocalPackages/TrioAnalyzer" */;
+			productName = TrioAnalyzer;
+		};
 		B958F1B62BA0711600484851 /* MKRingProgressView */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = B958F1B52BA0711600484851 /* XCRemoteSwiftPackageReference "MKRingProgressView" */;
@@ -5632,11 +5673,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = DD868FD92E381E1C005D3308 /* XCRemoteSwiftPackageReference "Swift-JWT" */;
 			productName = SwiftJWT;
-		};
-		93467531CD8243ECB5B51103 /* TrioAnalyzer */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AEC00AFCFBE448609978FF1E /* XCLocalSwiftPackageReference "TrioAnalyzer" */;
-			productName = TrioAnalyzer;
 		};
 /* End XCSwiftPackageProductDependency section */
 

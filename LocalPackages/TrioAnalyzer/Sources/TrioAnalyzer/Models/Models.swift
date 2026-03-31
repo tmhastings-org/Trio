@@ -7,13 +7,13 @@ public enum MealHandlingType: String, Codable, CaseIterable {
     case manualBolusOnly = "manual_bolus"
     case carbsOnly = "carbs_only"
     case carbsFatProtein = "carbs_fat_protein"
-    case varies = "varies"
+    case varies
 }
 
 public enum CarbCountingConfidence: String, Codable, CaseIterable {
-    case precise = "precise"
-    case reasonable = "reasonable"
-    case rough = "rough"
+    case precise
+    case reasonable
+    case rough
     case notApplicable = "n_a"
 }
 
@@ -21,7 +21,8 @@ public struct UserProfile: Codable {
     public let mealHandling: MealHandlingType
     public let carbCountingConfidence: CarbCountingConfidence
     public init(mealHandling: MealHandlingType, carbCountingConfidence: CarbCountingConfidence) {
-        self.mealHandling = mealHandling; self.carbCountingConfidence = carbCountingConfidence
+        self.mealHandling = mealHandling
+        self.carbCountingConfidence = carbCountingConfidence
     }
 }
 
@@ -41,7 +42,7 @@ public struct TrioSettingsProfile: Codable {
     public let maxCOB: Decimal
     public let threshold: Decimal
     public let insulinCurve: InsulinCurveType
-    public let insulinName: String?           // Raw insulin type name as exported from Trio
+    public let insulinName: String? // Raw insulin type name as exported from Trio
     public let dia: Decimal
     public let useCustomPeakTime: Bool
     public let insulinPeakTime: Decimal
@@ -73,16 +74,96 @@ public struct TrioSettingsProfile: Codable {
     public let fpuDelay: Decimal
     public let fpuInterval: Decimal
     public let smoothGlucose: Bool
+
+    public init(
+        exportDate: Date?, appVersion: String?, glucoseUnits: GlucoseUnit,
+        basalRates: [ScheduleEntry], isfSchedule: [ScheduleEntry], crSchedule: [ScheduleEntry],
+        glucoseTargets: [ScheduleEntry], maxIOB: Decimal, maxBolus: Decimal,
+        maxBasalRate: Decimal, maxCOB: Decimal, threshold: Decimal,
+        insulinCurve: InsulinCurveType, insulinName: String?, dia: Decimal,
+        useCustomPeakTime: Bool, insulinPeakTime: Decimal,
+        autosensMax: Decimal, autosensMin: Decimal, dynamicISFMode: DynamicISFMode,
+        adjustmentFactor: Decimal, adjustmentFactorSigmoid: Decimal,
+        weightPercentage: Decimal, tddAdjustBasal: Bool,
+        enableSMBAlways: Bool, enableSMBWithCOB: Bool, enableSMBWithTemptarget: Bool,
+        enableSMBAfterCarbs: Bool, enableSMBHighBG: Bool, enableSMBHighBGTarget: Decimal,
+        enableUAM: Bool, maxSMBBasalMinutes: Decimal, maxUAMSMBBasalMinutes: Decimal,
+        smbDeliveryRatio: Decimal, maxDeltaBGThreshold: Decimal,
+        highTemptargetRaisesSensitivity: Bool, lowTemptargetLowersSensitivity: Bool,
+        sensitivityRaisesTarget: Bool, resistanceLowersTarget: Bool,
+        halfBasalExerciseTarget: Decimal, useFPUConversion: Bool,
+        individualAdjustmentFactor: Decimal, fpuDelay: Decimal,
+        fpuInterval: Decimal, smoothGlucose: Bool
+    ) {
+        self.exportDate = exportDate
+        self.appVersion = appVersion
+        self.glucoseUnits = glucoseUnits
+        self.basalRates = basalRates
+        self.isfSchedule = isfSchedule
+        self.crSchedule = crSchedule
+        self.glucoseTargets = glucoseTargets
+        self.maxIOB = maxIOB
+        self.maxBolus = maxBolus
+        self.maxBasalRate = maxBasalRate
+        self.maxCOB = maxCOB
+        self.threshold = threshold
+        self.insulinCurve = insulinCurve
+        self.insulinName = insulinName
+        self.dia = dia
+        self.useCustomPeakTime = useCustomPeakTime
+        self.insulinPeakTime = insulinPeakTime
+        self.autosensMax = autosensMax
+        self.autosensMin = autosensMin
+        self.dynamicISFMode = dynamicISFMode
+        self.adjustmentFactor = adjustmentFactor
+        self.adjustmentFactorSigmoid = adjustmentFactorSigmoid
+        self.weightPercentage = weightPercentage
+        self.tddAdjustBasal = tddAdjustBasal
+        self.enableSMBAlways = enableSMBAlways
+        self.enableSMBWithCOB = enableSMBWithCOB
+        self.enableSMBWithTemptarget = enableSMBWithTemptarget
+        self.enableSMBAfterCarbs = enableSMBAfterCarbs
+        self.enableSMBHighBG = enableSMBHighBG
+        self.enableSMBHighBGTarget = enableSMBHighBGTarget
+        self.enableUAM = enableUAM
+        self.maxSMBBasalMinutes = maxSMBBasalMinutes
+        self.maxUAMSMBBasalMinutes = maxUAMSMBBasalMinutes
+        self.smbDeliveryRatio = smbDeliveryRatio
+        self.maxDeltaBGThreshold = maxDeltaBGThreshold
+        self.highTemptargetRaisesSensitivity = highTemptargetRaisesSensitivity
+        self.lowTemptargetLowersSensitivity = lowTemptargetLowersSensitivity
+        self.sensitivityRaisesTarget = sensitivityRaisesTarget
+        self.resistanceLowersTarget = resistanceLowersTarget
+        self.halfBasalExerciseTarget = halfBasalExerciseTarget
+        self.useFPUConversion = useFPUConversion
+        self.individualAdjustmentFactor = individualAdjustmentFactor
+        self.fpuDelay = fpuDelay
+        self.fpuInterval = fpuInterval
+        self.smoothGlucose = smoothGlucose
+    }
 }
 
-public enum GlucoseUnit: String, Codable { case mgdL = "mg/dL"; case mmolL = "mmol/L" }
-public enum InsulinCurveType: String, Codable { case rapidActing = "rapid-acting"; case ultraRapid = "ultra-rapid"; case bilinear = "bilinear" }
-public enum DynamicISFMode: String, Codable { case disabled; case logarithmic; case sigmoid }
+public enum GlucoseUnit: String, Codable { case mgdL = "mg/dL"
+    case mmolL = "mmol/L" }
+
+public enum InsulinCurveType: String, Codable { case rapidActing = "rapid-acting"
+    case ultraRapid = "ultra-rapid"
+    case bilinear }
+
+public enum DynamicISFMode: String, Codable { case disabled
+    case logarithmic
+    case sigmoid }
 
 public struct ScheduleEntry: Codable {
     public let time: String
     public let offsetMinutes: Int
     public let value: Decimal
+
+    public init(time: String, offsetMinutes: Int, value: Decimal) {
+        self.time = time
+        self.offsetMinutes = offsetMinutes
+        self.value = value
+    }
 }
 
 // MARK: - Parsed Determination
@@ -91,7 +172,7 @@ public struct ParsedDetermination: Codable {
     public let timestamp: Date
     public let bg: Decimal?
     public let isf: Decimal?
-    public let profileISF: Decimal?        // From reason: "ISF: X→Y" — X is profile, Y is effective
+    public let profileISF: Decimal? // From reason: "ISF: X→Y" — X is profile, Y is effective
     public let sensitivityRatio: Decimal?
     public let iob: Decimal?
     public let cob: Decimal?
@@ -111,12 +192,12 @@ public struct ParsedDetermination: Codable {
     public let reasonAF: Decimal?
     public let reasonTDD: Decimal?
     public let reasonBasalRatio: Decimal?
-    public let iobPredictions: [Int]?    // predictions.iob — 47 values at 5-min intervals (3.9h)
+    public let iobPredictions: [Int]? // predictions.iob — 47 values at 5-min intervals (3.9h)
 }
 
 // MARK: - Core Data Bridge Factory
 
-extension ParsedDetermination {
+public extension ParsedDetermination {
     /// Creates a `ParsedDetermination` from already-structured data (e.g. Core Data).
     /// Derives fields not stored as discrete columns (profileISF, deviation, reasonTDD,
     /// reasonAF, reasonBasalRatio, minPredBG, minGuardBG) from the `reason` string,
@@ -141,7 +222,7 @@ extension ParsedDetermination {
     ///   - reason:         Full reason string — source for all derived fields
     ///   - iobPredictions: IOB forecast array (from `forecasts` where `type == "iob"`,
     ///                     sorted by `ForecastValue.index`, values as `[Int]`)
-    public static func fromRaw(
+    static func fromRaw(
         timestamp: Date,
         bg: Decimal?,
         isf: Decimal?,
@@ -186,8 +267,8 @@ extension ParsedDetermination {
             threshold: threshold,
             carbRatio: carbRatio,
             reason: reason,
-            reasonAF: ReasonStringParser.extractDecimal(from: reason, prefix: "AF: ",          terminator: ",;)"),
-            reasonTDD: ReasonStringParser.extractDecimal(from: reason, prefix: "TDD: ",         terminator: " U"),
+            reasonAF: ReasonStringParser.extractDecimal(from: reason, prefix: "AF: ", terminator: ",;)"),
+            reasonTDD: ReasonStringParser.extractDecimal(from: reason, prefix: "TDD: ", terminator: " U"),
             reasonBasalRatio: ReasonStringParser.extractDecimal(from: reason, prefix: "Basal ratio: ", terminator: ",;)"),
             iobPredictions: iobPredictions
         )
@@ -204,16 +285,21 @@ public struct ParsedLogContext: Codable {
     public let overrideActive: Bool
     public let overridePercentage: Decimal?
     public let tempTargetActive: Bool
-    public let tdd: Decimal?       // from "Weighted TDD: X U" in dynamic ratios log line
+    public let tdd: Decimal? // from "Weighted TDD: X U" in dynamic ratios log line
 }
 
 public struct LoopCycleData: Codable {
     public let determination: ParsedDetermination
     public let context: ParsedLogContext?
 
+    public init(determination: ParsedDetermination, context: ParsedLogContext?) {
+        self.determination = determination
+        self.context = context
+    }
+
     public var isUAMActive: Bool {
         determination.reason.contains("UAMpredBG") ||
-        (context?.uamDuration ?? 0) > 0
+            (context?.uamDuration ?? 0) > 0
     }
 }
 
@@ -261,7 +347,10 @@ public struct MealEvent: Codable {
 // MARK: - Output
 
 public enum ConfidenceLevel: String, Codable, Comparable {
-    case high, moderate, low, insufficient
+    case high
+    case moderate
+    case low
+    case insufficient
     public static func < (lhs: ConfidenceLevel, rhs: ConfidenceLevel) -> Bool {
         let order: [ConfidenceLevel] = [.insufficient, .low, .moderate, .high]
         return (order.firstIndex(of: lhs) ?? 0) < (order.firstIndex(of: rhs) ?? 0)
@@ -271,14 +360,14 @@ public enum ConfidenceLevel: String, Codable, Comparable {
 /// What to adjust. Logarithmic users get AF recommendations, not ISF.
 public enum SettingPriority: String, Codable {
     case basal
-    case isf                // Profile ISF (static or sigmoid)
-    case adjustmentFactor   // AF (logarithmic)
+    case isf // Profile ISF (static or sigmoid)
+    case adjustmentFactor // AF (logarithmic)
     case cr
 }
 
 public enum AFDirection: String, Codable {
-    case increase   // AF too low, ratio wanting to exceed autosens_max
-    case decrease   // AF too high, ratio wanting to go below autosens_min
+    case increase // AF too low, ratio wanting to exceed autosens_max
+    case decrease // AF too high, ratio wanting to go below autosens_min
 }
 
 public struct SettingRecommendation: Codable {
@@ -304,30 +393,56 @@ public struct SettingScore: Codable {
     public let isAFRecommendation: Bool
     public let afDirection: AFDirection?
     public let medianTDD: Decimal?
-    public let suggestedAF: Decimal?          // Empirically derived AF target (logarithmic only)
+    public let suggestedAF: Decimal? // Empirically derived AF target (logarithmic only)
 
     /// Convenience initializer for non-logarithmic scores
-    public init(setting: SettingPriority, score: Decimal, needsAdjustment: Bool,
-         confidence: ConfidenceLevel, limitHitPercentage: Decimal,
-         cleanDataPointsTotal: Int, timeBlockAnalyses: [TimeBlockAnalysis]) {
-        self.setting = setting; self.score = score; self.needsAdjustment = needsAdjustment
-        self.confidence = confidence; self.limitHitPercentage = limitHitPercentage
-        self.cleanDataPointsTotal = cleanDataPointsTotal; self.timeBlockAnalyses = timeBlockAnalyses
-        self.isAFRecommendation = false; self.afDirection = nil; self.medianTDD = nil
-        self.suggestedAF = nil
+    public init(
+        setting: SettingPriority,
+        score: Decimal,
+        needsAdjustment: Bool,
+        confidence: ConfidenceLevel,
+        limitHitPercentage: Decimal,
+        cleanDataPointsTotal: Int,
+        timeBlockAnalyses: [TimeBlockAnalysis]
+    ) {
+        self.setting = setting
+        self.score = score
+        self.needsAdjustment = needsAdjustment
+        self.confidence = confidence
+        self.limitHitPercentage = limitHitPercentage
+        self.cleanDataPointsTotal = cleanDataPointsTotal
+        self.timeBlockAnalyses = timeBlockAnalyses
+        isAFRecommendation = false
+        afDirection = nil
+        medianTDD = nil
+        suggestedAF = nil
     }
 
     /// Full initializer for logarithmic scores
-    public init(setting: SettingPriority, score: Decimal, needsAdjustment: Bool,
-         confidence: ConfidenceLevel, limitHitPercentage: Decimal,
-         cleanDataPointsTotal: Int, timeBlockAnalyses: [TimeBlockAnalysis],
-         isAFRecommendation: Bool, afDirection: AFDirection?, medianTDD: Decimal?,
-         suggestedAF: Decimal? = nil) {
-        self.setting = setting; self.score = score; self.needsAdjustment = needsAdjustment
-        self.confidence = confidence; self.limitHitPercentage = limitHitPercentage
-        self.cleanDataPointsTotal = cleanDataPointsTotal; self.timeBlockAnalyses = timeBlockAnalyses
-        self.isAFRecommendation = isAFRecommendation; self.afDirection = afDirection
-        self.medianTDD = medianTDD; self.suggestedAF = suggestedAF
+    public init(
+        setting: SettingPriority,
+        score: Decimal,
+        needsAdjustment: Bool,
+        confidence: ConfidenceLevel,
+        limitHitPercentage: Decimal,
+        cleanDataPointsTotal: Int,
+        timeBlockAnalyses: [TimeBlockAnalysis],
+        isAFRecommendation: Bool,
+        afDirection: AFDirection?,
+        medianTDD: Decimal?,
+        suggestedAF: Decimal? = nil
+    ) {
+        self.setting = setting
+        self.score = score
+        self.needsAdjustment = needsAdjustment
+        self.confidence = confidence
+        self.limitHitPercentage = limitHitPercentage
+        self.cleanDataPointsTotal = cleanDataPointsTotal
+        self.timeBlockAnalyses = timeBlockAnalyses
+        self.isAFRecommendation = isAFRecommendation
+        self.afDirection = afDirection
+        self.medianTDD = medianTDD
+        self.suggestedAF = suggestedAF
     }
 }
 
@@ -365,7 +480,9 @@ public struct AnalysisWarning: Codable {
     public let message: String
 }
 
-public enum WarningSeverity: String, Codable { case info; case caution; case critical }
+public enum WarningSeverity: String, Codable { case info
+    case caution
+    case critical }
 
 // MARK: - Known Version Issues
 

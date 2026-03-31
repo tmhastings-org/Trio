@@ -89,8 +89,7 @@ extension Analysis {
 
         // MARK: - Report
 
-        @ViewBuilder
-        private func reportSections(_ report: AnalysisReport) -> some View {
+        @ViewBuilder private func reportSections(_ report: AnalysisReport) -> some View {
             // Warnings
             let criticalAndCaution = report.warnings.filter { $0.severity != .info }
             if !criticalAndCaution.isEmpty {
@@ -99,8 +98,11 @@ extension Analysis {
                         Label {
                             Text(warning.message).font(.footnote)
                         } icon: {
-                            Image(systemName: warning.severity == .critical ? "exclamationmark.triangle.fill" : "exclamationmark.circle")
-                                .foregroundStyle(warning.severity == .critical ? .red : .orange)
+                            Image(
+                                systemName: warning
+                                    .severity == .critical ? "exclamationmark.triangle.fill" : "exclamationmark.circle"
+                            )
+                            .foregroundStyle(warning.severity == .critical ? .red : .orange)
                         }
                     }
                 }
@@ -174,8 +176,7 @@ extension Analysis {
             return fmt.string(from: report.dataRangeStart) + " – " + fmt.string(from: report.dataRangeEnd)
         }
 
-        @ViewBuilder
-        private func confidenceBadge(_ level: ConfidenceLevel) -> some View {
+        @ViewBuilder private func confidenceBadge(_ level: ConfidenceLevel) -> some View {
             Text(level.rawValue.capitalized)
                 .font(.caption2)
                 .padding(.horizontal, 6)
@@ -187,9 +188,9 @@ extension Analysis {
 
         private func confidenceColor(_ level: ConfidenceLevel) -> Color {
             switch level {
-            case .high:         return .green
-            case .moderate:     return .yellow
-            case .low:          return .orange
+            case .high: return .green
+            case .moderate: return .yellow
+            case .low: return .orange
             case .insufficient: return .red
             }
         }
@@ -201,11 +202,11 @@ extension Analysis {
 private extension MealHandlingType {
     var displayName: String {
         switch self {
-        case .noEntry:        return String(localized: "No meal entry", comment: "Meal handling type")
+        case .noEntry: return String(localized: "No meal entry", comment: "Meal handling type")
         case .manualBolusOnly: return String(localized: "Manual bolus only", comment: "Meal handling type")
-        case .carbsOnly:      return String(localized: "Carbs only", comment: "Meal handling type")
+        case .carbsOnly: return String(localized: "Carbs only", comment: "Meal handling type")
         case .carbsFatProtein: return String(localized: "Carbs + fat & protein", comment: "Meal handling type")
-        case .varies:         return String(localized: "Varies", comment: "Meal handling type")
+        case .varies: return String(localized: "Varies", comment: "Meal handling type")
         }
     }
 }
@@ -213,9 +214,9 @@ private extension MealHandlingType {
 private extension CarbCountingConfidence {
     var displayName: String {
         switch self {
-        case .precise:       return String(localized: "Precise", comment: "Carb counting confidence")
-        case .reasonable:    return String(localized: "Reasonable", comment: "Carb counting confidence")
-        case .rough:         return String(localized: "Rough", comment: "Carb counting confidence")
+        case .precise: return String(localized: "Precise", comment: "Carb counting confidence")
+        case .reasonable: return String(localized: "Reasonable", comment: "Carb counting confidence")
+        case .rough: return String(localized: "Rough", comment: "Carb counting confidence")
         case .notApplicable: return String(localized: "Not applicable", comment: "Carb counting confidence")
         }
     }

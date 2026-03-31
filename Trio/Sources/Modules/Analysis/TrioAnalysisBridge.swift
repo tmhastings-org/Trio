@@ -10,7 +10,6 @@ import TrioAnalyzer
 /// It owns all Core Data fetching and `SettingsManager` → `TrioSettingsProfile` mapping
 /// so that TrioAnalyzerKit itself remains free of Trio-specific dependencies.
 final class TrioAnalysisBridge: Injectable {
-
     @Injected() private var settingsManager: SettingsManager!
     @Injected() private var storage: FileStorage!
     @Injected() private var deviceManager: DeviceDataManager!
@@ -71,7 +70,8 @@ final class TrioAnalysisBridge: Injectable {
 
         let insulinName: String
         if let pumpManager = deviceManager.pumpManager,
-           let insulinType = pumpManager.status.insulinType {
+           let insulinType = pumpManager.status.insulinType
+        {
             insulinName = insulinType.title
         } else {
             insulinName = prefs.curve.rawValue
@@ -82,7 +82,7 @@ final class TrioAnalysisBridge: Injectable {
         return TrioSettingsProfile(
             exportDate: Date(),
             appVersion: appVersion,
-            glucoseUnits: trio.units == .mgdL ? .mgdL : .mmolL,
+            glucoseUnits: trio.units == .mgdL ? GlucoseUnit.mgdL : GlucoseUnit.mmolL,
             basalRates: basalProfile.map {
                 ScheduleEntry(time: $0.start, offsetMinutes: $0.minutes, value: $0.rate)
             },
@@ -176,8 +176,8 @@ final class TrioAnalysisBridge: Injectable {
     private func insulinCurve(from curve: InsulinCurve) -> InsulinCurveType {
         switch curve {
         case .rapidActing: return .rapidActing
-        case .ultraRapid:  return .ultraRapid
-        case .bilinear:    return .bilinear
+        case .ultraRapid: return .ultraRapid
+        case .bilinear: return .bilinear
         }
     }
 

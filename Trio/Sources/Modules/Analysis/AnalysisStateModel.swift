@@ -4,7 +4,6 @@ import TrioAnalyzer
 
 extension Analysis {
     @Observable final class StateModel: BaseStateModel<Provider> {
-
         // MARK: - User inputs (bound to onboarding UI before running)
 
         var mealHandling: MealHandlingType = .varies
@@ -40,8 +39,7 @@ extension Analysis {
             }
         }
 
-        @MainActor
-        private func performAnalysis() async {
+        @MainActor private func performAnalysis() async {
             defer { isRunning = false }
 
             guard let bridge else {
