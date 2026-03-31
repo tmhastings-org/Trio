@@ -100,26 +100,20 @@ struct PumpView: View {
                 }
 
                 if let date = expiresAtDate {
-                    PatchTimer(date, isExpiration: true)
-                }
-
-                if let date = activatedAtDate {
-                    PatchTimer(date, isExpiration: false)
+                    PatchTimer(forDate: date)
                 }
             }
         }
     }
 
-    @ViewBuilder private func PatchTimer(_ date: Date, isExpiration: Bool) -> some View {
+    @ViewBuilder private func PatchTimer(forDate date: Date) -> some View {
         HStack {
             Image(systemName: hourglassIcon)
                 .font(.callout)
                 .foregroundStyle(timerColor, timerColorSecondary)
                 .symbolRenderingMode(.palette)
 
-            let remainingTimeString = isExpiration ?
-                remainingTimeString(time: date.timeIntervalSince(timerDate)) :
-                activeTimeString(time: timerDate.timeIntervalSince(date))
+            let remainingTimeString = remainingTimeString(time: date.timeIntervalSince(timerDate))
 
             Text(remainingTimeString)
                 .font(date.timeIntervalSince(timerDate) > 0 ? .callout : .subheadline)
@@ -135,7 +129,7 @@ struct PumpView: View {
                 )
         }
         // aligns the stopwatch icon exactly with the first pixel of the reservoir icon
-        .padding(.leading, date.timeIntervalSince(timerDate) > 0 || !isExpiration ? 12 : 0)
+        .padding(.leading, date.timeIntervalSince(timerDate) > 0 || activatedAtDate != nil ? 12 : 0)
     }
 
     private func remainingTimeString(time: TimeInterval) -> String {
@@ -165,23 +159,6 @@ struct PumpView: View {
         }
 
         return "\(minutes)" + String(localized: "m", comment: "abbreviation for minutes")
-    }
-
-    private func activeTimeString(time: TimeInterval) -> String {
-        var time = time
-        let days = Int(time / 1.days.timeInterval)
-        time -= days.days.timeInterval
-        let hours = Int(time / 1.hours.timeInterval)
-        time -= hours.hours.timeInterval
-        let minutes = Int(time / 1.minutes.timeInterval)
-
-        if days >= 1 {
-            return "\(days)" + String(localized: "d", comment: "abbreviation for days") + " \(hours)" +
-                String(localized: "h", comment: "abbreviation for hours")
-        }
-
-        return "\(hours)" + String(localized: "h", comment: "abbreviation for hours") + "\(minutes)" +
-            String(localized: "m", comment: "abbreviation for minutes")
     }
 
     private var batteryColor: Color {
