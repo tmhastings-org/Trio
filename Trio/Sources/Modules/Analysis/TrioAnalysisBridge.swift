@@ -23,13 +23,17 @@ final class TrioAnalysisBridge: Injectable {
 
     // MARK: - Cycles
 
-    /// Fetches the last 48 hours of OrefDetermination records from Core Data and converts
-    /// them into `LoopCycleData` values ready for TrioAnalyzerKit.
+    /// Fetches OrefDetermination records from Core Data and converts them into
+    /// `LoopCycleData` values ready for TrioAnalyzerKit.
+    ///
+    /// - Parameter days: How many days of history to include (default 14, max 90).
+    ///   Trio retains up to 90 days of loop cycle data in Core Data.
     ///
     /// IOB prediction arrays are prefetched via `relationshipKeyPathsForPrefetching`
     /// to avoid N+1 queries.
-    func buildCycles() async -> [LoopCycleData] {
-        let cutoff = Date().addingTimeInterval(-48 * 3600)
+    func buildCycles(days: Int = 14) async -> [LoopCycleData] {
+        let clampedDays = max(1, min(days, 90))
+        let cutoff = Date().addingTimeInterval(-Double(clampedDays) * 86400)
         let predicate = NSPredicate(format: "deliverAt >= %@", cutoff as NSDate)
 
         let request = OrefDetermination.fetchRequest()

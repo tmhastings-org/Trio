@@ -8,6 +8,7 @@ extension Analysis {
 
         var mealHandling: MealHandlingType = .varies
         var carbCounting: CarbCountingConfidence = .notApplicable
+        var daysToAnalyze: Int = 14
 
         // MARK: - Analysis state
 
@@ -52,7 +53,7 @@ extension Analysis {
                 return
             }
 
-            let cycles = await bridge.buildCycles()
+            let cycles = await bridge.buildCycles(days: daysToAnalyze)
 
             let result = TrioAnalyzerKit.analyze(
                 cycles: cycles,

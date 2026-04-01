@@ -13,6 +13,7 @@ protocol ISFAnalyzer {
 /// - Sigmoid: Profile ISF is anchored at target. Uses correction-response analysis.
 /// - Static (disabled): Profile ISF is the dosing ISF. Uses ratio bias analysis.
 struct TrioISFAnalyzer: ISFAnalyzer {
+
     func analyze(classified: [WindowClassification], settings: TrioSettingsProfile) -> SettingScore {
         switch settings.dynamicISFMode {
         case .logarithmic:
@@ -43,7 +44,7 @@ struct TrioISFAnalyzer: ISFAnalyzer {
             return insufficientScore(setting: .adjustmentFactor, count: clean.count)
         }
 
-        let ratios = clean.compactMap(\.cycle.determination.sensitivityRatio)
+        let ratios = clean.compactMap { $0.cycle.determination.sensitivityRatio }
         guard !ratios.isEmpty else {
             return insufficientScore(setting: .adjustmentFactor, count: 0)
         }
@@ -55,12 +56,20 @@ struct TrioISFAnalyzer: ISFAnalyzer {
         let limitsFrequentlyHit = limitPct > AnalysisThresholds.logLimitHitAlarmPercent
 
         // --- Extract median TDD: prefer context (Weighted TDD log line), fallback to reason string ---
+        // Use ALL cycles (not just clean) for TDD trend — we want the full picture of how TDD
+        // has moved over the data period, regardless of meal/UAM contamination.
+        let allTDDs = classified.compactMap { $0.cycle.context?.tdd ?? $0.cycle.determination.reasonTDD }
         let tdds = clean.compactMap { $0.cycle.context?.tdd ?? $0.cycle.determination.reasonTDD }
         let medianTDD = tdds.isEmpty ? nil : sortedMedian(tdds)
         let currentAF = settings.adjustmentFactor
 
+        // --- TDD trend analysis ---
+        // Computes coefficient of variation and first-half vs second-half shift
+        // to determine whether AF has been consistently miscalibrated or recently became wrong.
+        let (tddCoV, tddTrend) = analyzeTDDTrend(allTDDs)
+
         // --- Formula-based suggested AF ---
-        var suggestedAF: Decimal?
+        var suggestedAF: Decimal? = nil
         var blockAnalyses: [TimeBlockAnalysis] = []
 
         if let tdd = medianTDD, tdd > 0 {
@@ -87,11 +96,11 @@ struct TrioISFAnalyzer: ISFAnalyzer {
 
         // --- Synthesize: formula signal + limit-hitting corroboration ---
         var needsAdjustment = false
-        var afDirection: AFDirection?
+        var afDirection: AFDirection? = nil
         var confidence: ConfidenceLevel = .low
 
         if let suggested = suggestedAF {
-            let afDiff = (suggested - currentAF) / currentAF // signed fraction
+            let afDiff = (suggested - currentAF) / currentAF  // signed fraction
             let afDiffMagnitude = abs(afDiff)
             let formulaDirection: AFDirection = afDiff > 0 ? .increase : .decrease
 
@@ -100,10 +109,8 @@ struct TrioISFAnalyzer: ISFAnalyzer {
             // Ratio at autosensMin means the formula produces too low a ratio — AF too low, should increase.
             // This is counter-intuitive but follows from: newRatio = profileISF×AF×TDD×ln(BG/f+1)/1800.
             let limitDirectionMatchesFormula = limitsFrequentlyHit &&
-                (
-                    (atMax > atMin && formulaDirection == .decrease) || // both: AF too high
-                        (atMin > atMax && formulaDirection == .increase)
-                ) // both: AF too low
+                ((atMax > atMin && formulaDirection == .decrease) ||  // both: AF too high
+                 (atMin > atMax && formulaDirection == .increase))    // both: AF too low
 
             if afDiffMagnitude > AnalysisThresholds.afAdjustmentThreshold {
                 needsAdjustment = true
@@ -134,8 +141,49 @@ struct TrioISFAnalyzer: ISFAnalyzer {
             isAFRecommendation: true,
             afDirection: afDirection,
             medianTDD: medianTDD,
-            suggestedAF: suggestedAF
+            suggestedAF: suggestedAF,
+            tddCoefficientOfVariation: tddCoV,
+            tddTrend: tddTrend
         )
+    }
+
+    // MARK: - TDD Trend Analysis
+
+    /// Computes TDD coefficient of variation and trend direction from a time-ordered TDD series.
+    /// Returns (CoV%, TDDTrend). Returns (nil, nil) if fewer than 6 data points.
+    ///
+    /// Trend is determined by comparing median TDD of the first half vs second half of the period.
+    /// A shift > 15% in either direction is classified as rising or falling.
+    /// CoV ≥ 25% overrides to .volatile regardless of trend direction.
+    private func analyzeTDDTrend(_ tdds: [Decimal]) -> (Decimal?, TDDTrend?) {
+        guard tdds.count >= 6 else { return (nil, nil) }
+
+        let doubles = tdds.map { NSDecimalNumber(decimal: $0).doubleValue }
+        let mean = doubles.reduce(0, +) / Double(doubles.count)
+        guard mean > 0 else { return (nil, nil) }
+
+        let variance = doubles.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Double(doubles.count)
+        let stdDev = variance.squareRoot()
+        let covPct = Decimal(stdDev / mean * 100)
+
+        if covPct >= 25 { return (covPct, .volatile) }
+
+        // First vs second half median shift
+        let mid = tdds.count / 2
+        let firstHalf = Array(tdds.prefix(mid))
+        let secondHalf = Array(tdds.suffix(tdds.count - mid))
+        let firstMedian = NSDecimalNumber(decimal: sortedMedian(firstHalf)).doubleValue
+        let secondMedian = NSDecimalNumber(decimal: sortedMedian(secondHalf)).doubleValue
+
+        guard firstMedian > 0 else { return (covPct, .stable) }
+        let shift = (secondMedian - firstMedian) / firstMedian
+
+        let trend: TDDTrend
+        if shift > 0.15 { trend = .rising }
+        else if shift < -0.15 { trend = .falling }
+        else { trend = .stable }
+
+        return (covPct, trend)
     }
 
     // MARK: - Logarithmic Helpers
@@ -148,17 +196,19 @@ struct TrioISFAnalyzer: ISFAnalyzer {
     ///   useCustomPeakTime = true  → 120 − insulinPeakTime
     ///   useCustomPeakTime = false → curve-type default (rapid-acting: 55, ultra-rapid: 70, bilinear: 55)
     private func formulaBasedAF(medianTDD: Decimal, settings: TrioSettingsProfile) -> Decimal? {
-        // Profile ISF: median of schedule, converted to mg/dL
+        // Profile ISF: median of schedule, converted to mg/dL.
+        // Logarithmic Dynamic ISF users are instructed to set profile ISF to the value
+        // that works for corrections at 150 mg/dL. This is the calibration convention.
         guard !settings.isfSchedule.isEmpty else { return nil }
-        let profileISFRaw = sortedMedian(settings.isfSchedule.map(\.value))
+        let profileISFRaw = sortedMedian(settings.isfSchedule.map { $0.value })
         let profileISF_mgdL = settings.glucoseUnits == .mmolL ? profileISFRaw * 18 : profileISFRaw
         guard profileISF_mgdL > 0 else { return nil }
 
-        // BG anchor: median of glucose target schedule, converted to mg/dL
-        guard !settings.glucoseTargets.isEmpty else { return nil }
-        let targetRaw = sortedMedian(settings.glucoseTargets.map(\.value))
-        let bgAnchor_mgdL = settings.glucoseUnits == .mmolL ? targetRaw * Decimal(18) : targetRaw
-        guard bgAnchor_mgdL > 0 else { return nil }
+        // BG anchor: fixed at 150 mg/dL (8.33 mmol/L).
+        // Logarithmic Dynamic ISF has no built-in anchor BG — unlike sigmoid, which is
+        // algebraically anchored at the glucose target. Profile ISF for logarithmic users
+        // is calibrated at 150 mg/dL by convention, so that is the correct anchor here.
+        let bgAnchor_mgdL: Decimal = 150
 
         // insulinFactor: matches determine-basal.js logic exactly
         let insulinFactor: Decimal
@@ -166,9 +216,8 @@ struct TrioISFAnalyzer: ISFAnalyzer {
             insulinFactor = 120 - settings.insulinPeakTime
         } else {
             switch settings.insulinCurve {
-            case .ultraRapid: insulinFactor = 70 // insulinPA = 50
-            case .bilinear,
-                 .rapidActing: insulinFactor = 55 // insulinPA = 65
+            case .ultraRapid: insulinFactor = 70  // insulinPA = 50
+            case .rapidActing, .bilinear: insulinFactor = 55  // insulinPA = 65
             }
         }
         guard insulinFactor > 0 else { return nil }
@@ -212,39 +261,25 @@ struct TrioISFAnalyzer: ISFAnalyzer {
             return insufficientScore(setting: .isf, count: clean.count)
         }
 
-        let profileISF = sortedMedian(settings.isfSchedule.map(\.value))
+        let profileISF = sortedMedian(settings.isfSchedule.map { $0.value })
 
         // Primary: Tim Street prediction-error method
         let impliedSamples = collectPredictionErrorSamples(from: clean)
         if impliedSamples.count >= 4 {
-            return buildSigmoidScore(
-                from: impliedSamples,
-                cleanCount: clean.count,
-                profileISF: profileISF,
-                usedPredictionError: true
-            )
+            return buildSigmoidScore(from: impliedSamples, cleanCount: clean.count,
+                                     profileISF: profileISF, usedPredictionError: true)
         }
 
         // Fallback: direct correction-response (no prediction arrays available)
         let correctionSamples = collectCorrectionResponseSamples(from: clean)
         if correctionSamples.count >= 4 {
-            return buildSigmoidScore(
-                from: correctionSamples,
-                cleanCount: clean.count,
-                profileISF: profileISF,
-                usedPredictionError: false
-            )
+            return buildSigmoidScore(from: correctionSamples, cleanCount: clean.count,
+                                     profileISF: profileISF, usedPredictionError: false)
         }
 
-        return SettingScore(
-            setting: .isf,
-            score: 0,
-            needsAdjustment: false,
-            confidence: .insufficient,
-            limitHitPercentage: 0,
-            cleanDataPointsTotal: clean.count,
-            timeBlockAnalyses: []
-        )
+        return SettingScore(setting: .isf, score: 0, needsAdjustment: false,
+                            confidence: .insufficient, limitHitPercentage: 0,
+                            cleanDataPointsTotal: clean.count, timeBlockAnalyses: [])
     }
 
     /// Collects implied ISF samples using the prediction-error method.
@@ -263,13 +298,13 @@ struct TrioISFAnalyzer: ISFAnalyzer {
     private func collectPredictionErrorSamples(from clean: [WindowClassification]) -> [Decimal] {
         var samples: [Decimal] = []
 
-        for i in 0 ..< clean.count {
+        for i in 0..<clean.count {
             let d = clean[i].cycle.determination
             guard let bgNow = d.bg,
                   let preds = d.iobPredictions, preds.count > 12
             else { continue }
 
-            let predictedBG60 = Decimal(preds[12]) // index 12 = 60 min at 5-min intervals
+            let predictedBG60 = Decimal(preds[12])  // index 12 = 60 min at 5-min intervals
             let predictedDrop = bgNow - predictedBG60
 
             // Only use cycles where the IOB prediction shows a meaningful drop.
@@ -278,7 +313,7 @@ struct TrioISFAnalyzer: ISFAnalyzer {
 
             // Find actual BG 50–80 min later in a clean cycle
             let tsNow = d.timestamp
-            for j in (i + 1) ..< clean.count {
+            for j in (i + 1)..<clean.count {
                 let later = clean[j].cycle.determination
                 let elapsed = later.timestamp.timeIntervalSince(tsNow)
                 if elapsed < 50 * 60 { continue }
@@ -308,7 +343,7 @@ struct TrioISFAnalyzer: ISFAnalyzer {
     private func collectCorrectionResponseSamples(from clean: [WindowClassification]) -> [Decimal] {
         var samples: [Decimal] = []
 
-        for i in 0 ..< clean.count {
+        for i in 0..<clean.count {
             let d = clean[i].cycle.determination
             guard let smbUnits = d.units, smbUnits > 0,
                   let bgNow = d.bg,
@@ -319,7 +354,7 @@ struct TrioISFAnalyzer: ISFAnalyzer {
             guard expectedDrop > 0 else { continue }
 
             let tsNow = d.timestamp
-            for j in (i + 1) ..< clean.count {
+            for j in (i + 1)..<clean.count {
                 let later = clean[j].cycle.determination
                 let elapsed = later.timestamp.timeIntervalSince(tsNow)
                 if elapsed < 45 * 60 { continue }
@@ -365,7 +400,7 @@ struct TrioISFAnalyzer: ISFAnalyzer {
 
         let suggestedISF: Decimal?
         let adjustmentPct: Decimal?
-        if needsAdjustment, responseRatio > 0 {
+        if needsAdjustment && responseRatio > 0 {
             // Conservative 20% step toward the implied profile ISF
             let impliedISF = profileISF * responseRatio
             let adjusted = profileISF * Decimal(string: "0.8")! + impliedISF * Decimal(string: "0.2")!
@@ -394,15 +429,11 @@ struct TrioISFAnalyzer: ISFAnalyzer {
             adjustmentPercent: adjustmentPct
         )
 
-        return SettingScore(
-            setting: .isf,
-            score: bias,
-            needsAdjustment: needsAdjustment,
-            confidence: confidence,
-            limitHitPercentage: 0,
-            cleanDataPointsTotal: ratioSamples.count,
-            timeBlockAnalyses: [block]
-        )
+        return SettingScore(setting: .isf, score: bias, needsAdjustment: needsAdjustment,
+                            confidence: confidence,
+                            limitHitPercentage: 0,
+                            cleanDataPointsTotal: ratioSamples.count,
+                            timeBlockAnalyses: [block])
     }
 
     // MARK: - Static Analysis
@@ -422,7 +453,7 @@ struct TrioISFAnalyzer: ISFAnalyzer {
             return insufficientScore(setting: .isf, count: clean.count)
         }
 
-        let ratios = clean.compactMap(\.cycle.determination.sensitivityRatio)
+        let ratios = clean.compactMap { $0.cycle.determination.sensitivityRatio }
         guard !ratios.isEmpty else {
             return insufficientScore(setting: .isf, count: 0)
         }
@@ -439,7 +470,7 @@ struct TrioISFAnalyzer: ISFAnalyzer {
 
         let suggestedISF: Decimal?
         let adjustmentPct: Decimal?
-        if needsAdjustment, medianR > 0 {
+        if needsAdjustment && medianR > 0 {
             let fullNew = profileISF / medianR
             let adjusted = profileISF * Decimal(string: "0.8")! + fullNew * Decimal(string: "0.2")!
             adjustmentPct = ((adjusted - profileISF) / profileISF) * 100
@@ -458,13 +489,13 @@ struct TrioISFAnalyzer: ISFAnalyzer {
         // During flat-BG, low-IOB periods the loop is in equilibrium — this is the most direct
         // read of whether the profile ISF is calibrated correctly.
         let stableSamples = collectStablePeriodISFSamples(from: clean)
-        if stableSamples.count >= 6, needsAdjustment {
+        if stableSamples.count >= 6 && needsAdjustment {
             let medianStableISF = sortedMedian(stableSamples)
             let stableBias = (medianStableISF - profileISF) / profileISF
             // If the stable-period signal agrees with the ratio-bias direction, upgrade confidence
-            let ratioBiasDirection = medianR > 1 ? 1 : -1 // +1 = ISF too high, -1 = ISF too low
-            let stableDirection = stableBias > 0 ? -1 : 1 // +stable ISF > profile = ISF too low
-            if ratioBiasDirection == stableDirection, abs(stableBias) > Decimal(string: "0.10")! {
+            let ratioBiasDirection = medianR > 1 ? 1 : -1   // +1 = ISF too high, -1 = ISF too low
+            let stableDirection = stableBias > 0 ? -1 : 1    // +stable ISF > profile = ISF too low
+            if ratioBiasDirection == stableDirection && abs(stableBias) > Decimal(string: "0.10")! {
                 confidence = confidence == .moderate ? .high : confidence
             }
         }
@@ -502,38 +533,32 @@ struct TrioISFAnalyzer: ISFAnalyzer {
             let d = w.cycle.determination
             guard let isf = d.isf, isf > 0,
                   let ratio = d.sensitivityRatio, ratio > 0,
-                  let bg = d.bg, bg >= 75, bg <= 140,
+                  let bg = d.bg, bg >= 75 && bg <= 140,
                   let iob = d.iob
             else { return nil }
 
             let delta = d.minDelta ?? 10
-            guard delta >= -3, delta <= 3 else { return nil }
+            guard delta >= -3 && delta <= 3 else { return nil }
 
             let iobDouble = NSDecimalNumber(decimal: iob).doubleValue
             guard iobDouble < 1.0 else { return nil }
 
-            return isf * ratio // implied profile ISF
+            return isf * ratio  // implied profile ISF
         }
     }
 
     // MARK: - Helpers
 
     private func insufficientScore(setting: SettingPriority, count: Int) -> SettingScore {
-        SettingScore(
-            setting: setting,
-            score: 0,
-            needsAdjustment: false,
-            confidence: .insufficient,
-            limitHitPercentage: 0,
-            cleanDataPointsTotal: count,
-            timeBlockAnalyses: []
-        )
+        SettingScore(setting: setting, score: 0, needsAdjustment: false,
+                     confidence: .insufficient, limitHitPercentage: 0,
+                     cleanDataPointsTotal: count, timeBlockAnalyses: [])
     }
 
     private func sortedMedian(_ values: [Decimal]) -> Decimal {
         let sorted = values.sorted()
         guard !sorted.isEmpty else { return 0 }
         let mid = sorted.count / 2
-        return sorted.count % 2 == 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+        return sorted.count % 2 == 0 ? (sorted[mid-1] + sorted[mid]) / 2 : sorted[mid]
     }
 }

@@ -5,41 +5,86 @@ protocol BasalAnalyzer {
 }
 
 struct TrioBasalAnalyzer: BasalAnalyzer {
+
     func analyze(classified: [WindowClassification], settings: TrioSettingsProfile) -> SettingScore {
         let clean = classified.filter { $0.isCleanForBasal }
 
         guard clean.count >= AnalysisThresholds.minimumTotalDataPoints else {
-            return SettingScore(
-                setting: .basal,
-                score: 0,
-                needsAdjustment: false,
-                confidence: .insufficient,
-                limitHitPercentage: 0,
-                cleanDataPointsTotal: clean.count,
-                timeBlockAnalyses: []
-            )
+            return SettingScore(setting: .basal, score: 0, needsAdjustment: false,
+                                confidence: .insufficient, limitHitPercentage: 0,
+                                cleanDataPointsTotal: clean.count, timeBlockAnalyses: [])
         }
 
         let hourlyGroups = groupByHour(clean)
-        let timeBlocks = buildTimeBlocks(
-            hourlyGroups: hourlyGroups,
-            basalSchedule: settings.basalRates,
-            allClassified: classified,
-            settings: settings
-        )
-
-        let maxMedianDev = timeBlocks
-            .filter { $0.cleanDataPoints >= AnalysisThresholds.minimumDataPointsPerBlock }
-            .map { abs($0.medianDeviation) }
-            .max() ?? 0
-
-        let needsAdjustment = maxMedianDev > AnalysisThresholds.basalDeviationMagnitude
+        let timeBlocks = buildTimeBlocks(hourlyGroups: hourlyGroups, basalSchedule: settings.basalRates,
+                                          allClassified: classified, settings: settings)
 
         let blocksWithData = timeBlocks.filter { $0.cleanDataPoints >= AnalysisThresholds.minimumDataPointsPerBlock }
+
+        let maxMedianDev = blocksWithData.map { abs($0.medianDeviation) }.max() ?? 0
+        let deviationSignal = maxMedianDev > AnalysisThresholds.basalDeviationMagnitude
+
+        // Secondary signal: sustained autosens ratio bias.
+        // When basal is slightly off, autosens compensates by running sensitivityRatio above or
+        // below 1.0. The deviation stays near zero because autosens is doing the work — masking
+        // the problem from deviation-based analysis. A ratio consistently ≥ 5% from 1.0 across
+        // multiple blocks is a reliable signal that profile basal needs adjustment.
+        // ISF analysis cannot be trusted until basal is confirmed, so this must be detected
+        // before ISF recommendations are generated.
+        let ratioBiasBlocks = blocksWithData.filter {
+            abs(NSDecimalNumber(decimal: $0.medianSensitivityRatio).doubleValue - 1.0) >= 0.05
+        }
+        let ratioDirection: Int? = {
+            guard ratioBiasBlocks.count >= max(1, blocksWithData.count / 2) else { return nil }
+            let above = ratioBiasBlocks.filter { $0.medianSensitivityRatio > 1 }.count
+            let below = ratioBiasBlocks.filter { $0.medianSensitivityRatio < 1 }.count
+            if above > below { return 1 }   // basal too low — autosens running high
+            if below > above { return -1 }  // basal too high — autosens running low
+            return nil  // mixed signal — not actionable
+        }()
+        let ratioSignal = ratioDirection != nil
+
+        // Apply ratio-based suggested values to blocks that have the bias but quiet deviation
+        let timeBlocksWithRatioSuggestions: [TimeBlockAnalysis] = timeBlocks.map { block in
+            guard block.suggestedValue == nil,  // deviation didn't already produce a suggestion
+                  block.cleanDataPoints >= AnalysisThresholds.minimumDataPointsPerBlock,
+                  let dir = ratioDirection
+            else { return block }
+
+            let ratio = NSDecimalNumber(decimal: block.medianSensitivityRatio).doubleValue
+            guard abs(ratio - 1.0) >= 0.05 else { return block }
+
+            // 50% step toward the ratio-implied basal.
+            // Unlike deviation-based adjustments (empirical, noisier), ratio bias is a clean
+            // directional signal — autosens is consistently compensating by a known amount.
+            // 50% is still conservative but large enough to survive 0.05 U/hr rounding.
+            let implied = block.currentProfileValue * block.medianSensitivityRatio
+            let conservative = block.currentProfileValue + (implied - block.currentProfileValue) * Decimal(0.5)
+            let suggested = roundBasal(conservative)
+            guard suggested != block.currentProfileValue else { return block }
+            let adjPct = ((suggested - block.currentProfileValue) / block.currentProfileValue) * 100
+            _ = dir  // direction already validated above
+
+            return TimeBlockAnalysis(
+                blockLabel: block.blockLabel,
+                startMinutes: block.startMinutes, endMinutes: block.endMinutes,
+                cleanDataPoints: block.cleanDataPoints, totalDataPoints: block.totalDataPoints,
+                medianDeviation: block.medianDeviation, meanDeviation: block.meanDeviation,
+                deviationP25: block.deviationP25, deviationP75: block.deviationP75,
+                medianSensitivityRatio: block.medianSensitivityRatio,
+                sensitivityRatioAtMax: block.sensitivityRatioAtMax,
+                sensitivityRatioAtMin: block.sensitivityRatioAtMin,
+                currentProfileValue: block.currentProfileValue,
+                suggestedValue: suggested, adjustmentPercent: adjPct
+            )
+        }
+
+        let needsAdjustment = deviationSignal || ratioSignal
+
         let confidence: ConfidenceLevel
-        if clean.count >= AnalysisThresholds.minimumTotalDataPoints * 3, blocksWithData.count >= timeBlocks.count / 2 {
+        if clean.count >= AnalysisThresholds.minimumTotalDataPoints * 3 && blocksWithData.count >= timeBlocks.count / 2 {
             confidence = .high
-        } else if clean.count >= AnalysisThresholds.minimumTotalDataPoints, blocksWithData.count >= 2 {
+        } else if clean.count >= AnalysisThresholds.minimumTotalDataPoints && blocksWithData.count >= 2 {
             confidence = .moderate
         } else if clean.count >= AnalysisThresholds.minimumDataPointsPerBlock {
             confidence = .low
@@ -47,15 +92,14 @@ struct TrioBasalAnalyzer: BasalAnalyzer {
             confidence = .insufficient
         }
 
-        return SettingScore(
-            setting: .basal,
-            score: maxMedianDev,
-            needsAdjustment: needsAdjustment,
-            confidence: confidence,
-            limitHitPercentage: 0,
-            cleanDataPointsTotal: clean.count,
-            timeBlockAnalyses: timeBlocks
-        )
+        let score = ratioSignal
+            ? blocksWithData.map { abs(NSDecimalNumber(decimal: $0.medianSensitivityRatio).doubleValue - 1.0) }.max().map { Decimal($0 * 100) } ?? maxMedianDev
+            : maxMedianDev
+
+        return SettingScore(setting: .basal, score: score, needsAdjustment: needsAdjustment,
+                            confidence: confidence, limitHitPercentage: 0,
+                            cleanDataPointsTotal: clean.count,
+                            timeBlockAnalyses: timeBlocksWithRatioSuggestions)
     }
 
     private func groupByHour(_ cycles: [WindowClassification]) -> [Int: [WindowClassification]] {
@@ -83,7 +127,7 @@ struct TrioBasalAnalyzer: BasalAnalyzer {
 
             var blockCycles: [WindowClassification] = []
             var totalInBlock = 0
-            for hour in startHour ..< endHour {
+            for hour in startHour..<endHour {
                 let h = hour % 24
                 blockCycles.append(contentsOf: hourlyGroups[h] ?? [])
                 totalInBlock += allClassified.filter {
@@ -91,19 +135,14 @@ struct TrioBasalAnalyzer: BasalAnalyzer {
                 }.count
             }
 
-            let devs = blockCycles.compactMap(\.cycle.determination.deviation)
+            let devs = blockCycles.compactMap { $0.cycle.determination.deviation }
                 .map { NSDecimalNumber(decimal: $0).doubleValue }.sorted()
 
             let label = formatLabel(startHour: startHour, endHour: endHour)
 
             guard !devs.isEmpty else {
-                blocks.append(emptyBlock(
-                    label: label,
-                    start: startHour * 60,
-                    end: endHour * 60,
-                    total: totalInBlock,
-                    profile: basalRate
-                ))
+                blocks.append(emptyBlock(label: label, start: startHour * 60, end: endHour * 60,
+                                          total: totalInBlock, profile: basalRate))
                 continue
             }
 
@@ -112,18 +151,14 @@ struct TrioBasalAnalyzer: BasalAnalyzer {
             let p25 = Decimal(percentile(devs, p: 0.25))
             let p75 = Decimal(percentile(devs, p: 0.75))
 
-            let ratios = blockCycles.compactMap(\.cycle.determination.sensitivityRatio)
+            let ratios = blockCycles.compactMap { $0.cycle.determination.sensitivityRatio }
             let medianRatio = ratios.isEmpty ? Decimal(1) : sortedMedian(ratios)
             let atMax = ratios.filter { $0 >= settings.autosensMax - 0.01 }.count
             let atMin = ratios.filter { $0 <= settings.autosensMin + 0.01 }.count
 
             let isfForBlock = effectiveISF(hour: startHour, settings: settings)
-            let (suggested, adjPct) = computeAdjustment(
-                current: basalRate,
-                medianDev: median,
-                isf: isfForBlock,
-                n: devs.count
-            )
+            let (suggested, adjPct) = computeAdjustment(current: basalRate, medianDev: median,
+                                                         isf: isfForBlock, n: devs.count)
 
             blocks.append(TimeBlockAnalysis(
                 blockLabel: label, startMinutes: startHour * 60, endMinutes: endHour * 60,
@@ -137,8 +172,7 @@ struct TrioBasalAnalyzer: BasalAnalyzer {
     }
 
     private func computeAdjustment(current: Decimal, medianDev: Decimal, isf: Decimal, n: Int)
-        -> (Decimal?, Decimal?)
-    {
+        -> (Decimal?, Decimal?) {
         guard n >= AnalysisThresholds.minimumDataPointsPerBlock,
               abs(medianDev) > AnalysisThresholds.basalDeviationMagnitude,
               isf > 0, current > 0 else { return (nil, nil) }
@@ -162,9 +196,8 @@ struct TrioBasalAnalyzer: BasalAnalyzer {
     private func formatLabel(startHour: Int, endHour: Int) -> String {
         func fmt(_ h: Int) -> String {
             let n = h % 24
-            if n == 0 { return "12:00 AM" }
-            if n == 12 { return "12:00 PM" }
-            return n < 12 ? "\(n):00 AM" : "\(n - 12):00 PM"
+            if n == 0 { return "12:00 AM" }; if n == 12 { return "12:00 PM" }
+            return n < 12 ? "\(n):00 AM" : "\(n-12):00 PM"
         }
         return "\(fmt(startHour)) – \(fmt(endHour))"
     }
@@ -172,34 +205,27 @@ struct TrioBasalAnalyzer: BasalAnalyzer {
     private func percentile(_ sorted: [Double], p: Double) -> Double {
         guard sorted.count > 1 else { return sorted.first ?? 0 }
         let idx = p * Double(sorted.count - 1)
-        let lo = Int(idx)
-        let hi = min(lo + 1, sorted.count - 1)
+        let lo = Int(idx); let hi = min(lo + 1, sorted.count - 1)
         return sorted[lo] + (idx - Double(lo)) * (sorted[hi] - sorted[lo])
     }
 
     private func sortedMedian(_ values: [Decimal]) -> Decimal {
-        let s = values.sorted()
-        let m = s.count / 2
-        return s.count % 2 == 0 ? (s[m - 1] + s[m]) / 2 : s[m]
+        let s = values.sorted(); let m = s.count / 2
+        return s.count % 2 == 0 ? (s[m-1] + s[m]) / 2 : s[m]
+    }
+
+    private func roundBasal(_ value: Decimal) -> Decimal {
+        var result = Decimal()
+        var mutable = value * 20
+        NSDecimalRound(&result, &mutable, 0, .plain)
+        return result / 20  // 0.05 U/hr increments
     }
 
     private func emptyBlock(label: String, start: Int, end: Int, total: Int, profile: Decimal) -> TimeBlockAnalysis {
-        TimeBlockAnalysis(
-            blockLabel: label,
-            startMinutes: start,
-            endMinutes: end,
-            cleanDataPoints: 0,
-            totalDataPoints: total,
-            medianDeviation: 0,
-            meanDeviation: 0,
-            deviationP25: 0,
-            deviationP75: 0,
-            medianSensitivityRatio: 1,
-            sensitivityRatioAtMax: 0,
-            sensitivityRatioAtMin: 0,
-            currentProfileValue: profile,
-            suggestedValue: nil,
-            adjustmentPercent: nil
-        )
+        TimeBlockAnalysis(blockLabel: label, startMinutes: start, endMinutes: end,
+                          cleanDataPoints: 0, totalDataPoints: total,
+                          medianDeviation: 0, meanDeviation: 0, deviationP25: 0, deviationP75: 0,
+                          medianSensitivityRatio: 1, sensitivityRatioAtMax: 0, sensitivityRatioAtMin: 0,
+                          currentProfileValue: profile, suggestedValue: nil, adjustmentPercent: nil)
     }
 }

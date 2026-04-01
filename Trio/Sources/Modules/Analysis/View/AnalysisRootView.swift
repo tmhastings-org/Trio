@@ -59,6 +59,12 @@ extension Analysis {
                         Text(level.displayName).tag(level)
                     }
                 }
+
+                Stepper(
+                    String(localized: "Analyze last \(state.daysToAnalyze) days", comment: "Analysis days"),
+                    value: $state.daysToAnalyze,
+                    in: 1 ... 90
+                )
             }
             .listRowBackground(Color.chart)
         }
@@ -90,19 +96,20 @@ extension Analysis {
         // MARK: - Report
 
         @ViewBuilder private func reportSections(_ report: AnalysisReport) -> some View {
-            // Warnings
-            let criticalAndCaution = report.warnings.filter { $0.severity != .info }
-            if !criticalAndCaution.isEmpty {
+            // Glycemic metrics
+            if let gm = report.glycemicMetrics {
+                glycemicSection(gm)
+            }
+
+            // Warnings (all severities)
+            if !report.warnings.isEmpty {
                 Section(header: Text("Warnings")) {
-                    ForEach(criticalAndCaution, id: \.message) { warning in
+                    ForEach(report.warnings, id: \.message) { warning in
                         Label {
                             Text(warning.message).font(.footnote)
                         } icon: {
-                            Image(
-                                systemName: warning
-                                    .severity == .critical ? "exclamationmark.triangle.fill" : "exclamationmark.circle"
-                            )
-                            .foregroundStyle(warning.severity == .critical ? .red : .orange)
+                            Image(systemName: warningIcon(warning.severity))
+                                .foregroundStyle(warningColor(warning.severity))
                         }
                     }
                 }
@@ -135,6 +142,9 @@ extension Analysis {
             // Recommendations
             if !report.recommendations.isEmpty {
                 Section(header: Text("Recommendations")) {
+                    Text("Implement ONE at a time. Re-run after each change.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     ForEach(report.recommendations, id: \.timeBlockLabel) { rec in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
@@ -144,10 +154,12 @@ extension Analysis {
                                 confidenceBadge(rec.confidence)
                             }
                             if let suggested = rec.suggestedValue, let pct = rec.adjustmentPercent {
-                                Text(
-                                    "Current: \(rec.currentValue.formatted()) → Suggested: \(suggested.formatted()) (\(pct > 0 ? "+" : "")\(pct.formatted())%)"
-                                )
-                                .font(.footnote)
+                                let isAF = rec.setting == .adjustmentFactor
+                                let curStr = isAF ? formatAF(rec.currentValue) : rec.currentValue.formatted()
+                                let sugStr = isAF ? formatAF(suggested) : suggested.formatted()
+                                let pctStr = String(format: "%+.1f%%", (pct as NSDecimalNumber).doubleValue)
+                                Text("Current: \(curStr) → Suggested: \(sugStr) (\(pctStr))")
+                                    .font(.footnote)
                             }
                             Text(rec.rationale)
                                 .font(.footnote)
@@ -167,6 +179,34 @@ extension Analysis {
             }
         }
 
+        // MARK: - Glycemic metrics section
+
+        @ViewBuilder private func glycemicSection(_ gm: GlycemicMetrics) -> some View {
+            Section(header: Text("Glycemic Summary")) {
+                LabeledContent(
+                    String(localized: "Time in Range (70–180)", comment: "TIR label"),
+                    value: String(format: "%.0f%%", (gm.timeInRange as NSDecimalNumber).doubleValue)
+                )
+                LabeledContent(
+                    String(localized: "Tight Range (70–140)", comment: "TITR label"),
+                    value: String(format: "%.0f%%", (gm.timeInTightRange as NSDecimalNumber).doubleValue)
+                )
+                LabeledContent(
+                    String(localized: "Below Range (<70)", comment: "TBR label"),
+                    value: String(format: "%.0f%%", (gm.timeBelowRange as NSDecimalNumber).doubleValue)
+                )
+                LabeledContent(
+                    String(localized: "Above Range (>180)", comment: "TAR label"),
+                    value: String(format: "%.0f%%", (gm.timeAboveRange as NSDecimalNumber).doubleValue)
+                )
+                LabeledContent(
+                    String(localized: "Median Glucose", comment: "Median glucose label"),
+                    value: "\(Int(NSDecimalNumber(decimal: gm.medianGlucose).doubleValue)) mg/dL"
+                )
+            }
+            .listRowBackground(Color.chart)
+        }
+
         // MARK: - Helpers
 
         private func dateRangeText(_ report: AnalysisReport) -> String {
@@ -174,6 +214,13 @@ extension Analysis {
             fmt.dateStyle = .short
             fmt.timeStyle = .short
             return fmt.string(from: report.dataRangeStart) + " – " + fmt.string(from: report.dataRangeEnd)
+        }
+
+        private func formatAF(_ value: Decimal) -> String {
+            let d = (value as NSDecimalNumber).doubleValue * 100
+            return d.truncatingRemainder(dividingBy: 1) == 0
+                ? String(format: "%.0f%%", d)
+                : String(format: "%.1f%%", d)
         }
 
         @ViewBuilder private func confidenceBadge(_ level: ConfidenceLevel) -> some View {
@@ -192,6 +239,22 @@ extension Analysis {
             case .moderate: return .yellow
             case .low: return .orange
             case .insufficient: return .red
+            }
+        }
+
+        private func warningIcon(_ severity: WarningSeverity) -> String {
+            switch severity {
+            case .critical: return "exclamationmark.triangle.fill"
+            case .caution:  return "exclamationmark.circle.fill"
+            case .info:     return "info.circle.fill"
+            }
+        }
+
+        private func warningColor(_ severity: WarningSeverity) -> Color {
+            switch severity {
+            case .critical: return .red
+            case .caution:  return .orange
+            case .info:     return .secondary
             }
         }
     }

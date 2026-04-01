@@ -5,65 +5,46 @@ protocol MealEventDetector {
 }
 
 protocol CRAnalyzer {
-    func analyze(
-        classified: [WindowClassification],
-        mealEvents: [MealEvent],
-        settings: TrioSettingsProfile,
-        carbCountingConfidence: CarbCountingConfidence
-    ) -> SettingScore
+    func analyze(classified: [WindowClassification], mealEvents: [MealEvent], settings: TrioSettingsProfile, carbCountingConfidence: CarbCountingConfidence) -> SettingScore
 }
 
 // MARK: - Meal Event Detector
 
 struct TrioMealEventDetector: MealEventDetector {
-    func detect(cycles: [LoopCycleData], settings: TrioSettingsProfile, userType _: DetectedUserType) -> [MealEvent] {
-        var events: [MealEvent] = []
-        var startIdx: Int?
-        var peak: Decimal = 0
-        var cobDepleted = false
+    func detect(cycles: [LoopCycleData], settings: TrioSettingsProfile, userType: DetectedUserType) -> [MealEvent] {
+        var events: [MealEvent] = []; var startIdx: Int? = nil; var peak: Decimal = 0; var cobDepleted = false
 
         for (i, cycle) in cycles.enumerated() {
             let cob = cycle.determination.cob ?? 0
-            if cob > 0, startIdx == nil {
-                startIdx = i
-                peak = cob
-                cobDepleted = false
+            if cob > 0 && startIdx == nil {
+                startIdx = i; peak = cob; cobDepleted = false
             } else if cob > 0, startIdx != nil {
                 peak = max(peak, cob)
             } else if cob == 0, let si = startIdx {
                 if !cobDepleted {
                     cobDepleted = true
                     let ahead = min(i + 6, cycles.count)
-                    if (i + 1 ..< ahead).contains(where: { (cycles[$0].determination.cob ?? 0) > 0 }) { continue }
+                    if (i+1..<ahead).contains(where: { (cycles[$0].determination.cob ?? 0) > 0 }) { continue }
                 }
                 let basal = basalRate(cycle.determination.timestamp, settings.basalRates) ?? Decimal(0.5)
                 let siIOB = cycles[si].determination.iob ?? 0
                 let curIOB = cycle.determination.iob ?? 0
                 if curIOB <= siIOB + basal / 2 || i == cycles.count - 1 {
                     if let event = buildEvent(cycles, si, i, peak, settings) { events.append(event) }
-                    startIdx = nil
-                    peak = 0
-                    cobDepleted = false
+                    startIdx = nil; peak = 0; cobDepleted = false
                 }
             }
         }
         return events
     }
 
-    private func buildEvent(
-        _ cycles: [LoopCycleData],
-        _ si: Int,
-        _ ei: Int,
-        _ peak: Decimal,
-        _ settings: TrioSettingsProfile
-    ) -> MealEvent? {
+    private func buildEvent(_ cycles: [LoopCycleData], _ si: Int, _ ei: Int, _ peak: Decimal, _ settings: TrioSettingsProfile) -> MealEvent? {
         guard si < ei, ei < cycles.count else { return nil }
-        let s = cycles[si].determination
-        let e = cycles[ei].determination
+        let s = cycles[si].determination; let e = cycles[ei].determination
         guard let sBG = s.bg, let eBG = e.bg else { return nil }
 
         var insulin: Decimal = 0
-        for idx in si ... ei {
+        for idx in si...ei {
             let d = cycles[idx].determination
             if let u = d.units, u > 0 { insulin += u }
             if let r = d.rate, let dur = d.duration, dur > 0 {
@@ -72,13 +53,11 @@ struct TrioMealEventDetector: MealEventDetector {
             }
         }
 
-        var hasFPU = false
-        var wasZero = false
-        for idx in si ... ei {
+        var hasFPU = false; var wasZero = false
+        for idx in si...ei {
             let c = cycles[idx].determination.cob ?? 0
-            if c == 0, !wasZero { wasZero = true }
-            else if c > 0, wasZero { hasFPU = true
-                break }
+            if c == 0 && !wasZero { wasZero = true }
+            else if c > 0 && wasZero { hasFPU = true; break }
         }
 
         let isf = effectiveISF(e.timestamp, settings)
@@ -87,18 +66,10 @@ struct TrioMealEventDetector: MealEventDetector {
         let totalNeeded = insulin + (s.iob ?? 0) + bgCorr
         let effCR = totalNeeded > 0 ? peak / totalNeeded : nil
 
-        return MealEvent(
-            mealStartTime: s.timestamp,
-            mealEndTime: e.timestamp,
-            startBG: sBG,
-            endBG: eBG,
-            startIOB: s.iob ?? 0,
-            endIOB: e.iob ?? 0,
-            carbsEntered: peak,
-            totalInsulinDelivered: insulin,
-            effectiveCR: effCR,
-            hasFPUTail: hasFPU
-        )
+        return MealEvent(mealStartTime: s.timestamp, mealEndTime: e.timestamp,
+                          startBG: sBG, endBG: eBG, startIOB: s.iob ?? 0, endIOB: e.iob ?? 0,
+                          carbsEntered: peak, totalInsulinDelivered: insulin,
+                          effectiveCR: effCR, hasFPUTail: hasFPU)
     }
 
     private func basalRate(_ date: Date, _ schedule: [ScheduleEntry]) -> Decimal? {
@@ -120,40 +91,24 @@ struct TrioMealEventDetector: MealEventDetector {
 // MARK: - CR Analyzer
 
 struct TrioCRAnalyzer: CRAnalyzer {
-    func analyze(
-        classified _: [WindowClassification],
-        mealEvents: [MealEvent],
-        settings: TrioSettingsProfile,
-        carbCountingConfidence: CarbCountingConfidence
-    ) -> SettingScore {
+    func analyze(classified: [WindowClassification], mealEvents: [MealEvent],
+                 settings: TrioSettingsProfile, carbCountingConfidence: CarbCountingConfidence) -> SettingScore {
         let valid = mealEvents.filter { $0.carbsEntered > 0 && ($0.effectiveCR ?? 0) > 0
             && $0.mealEndTime.timeIntervalSince($0.mealStartTime) > 3600 }
 
         guard valid.count >= AnalysisThresholds.minimumMealEvents else {
-            return SettingScore(
-                setting: .cr,
-                score: 0,
-                needsAdjustment: false,
-                confidence: .insufficient,
-                limitHitPercentage: 0,
-                cleanDataPointsTotal: valid.count,
-                timeBlockAnalyses: []
-            )
+            return SettingScore(setting: .cr, score: 0, needsAdjustment: false,
+                                confidence: .insufficient, limitHitPercentage: 0,
+                                cleanDataPointsTotal: valid.count, timeBlockAnalyses: [])
         }
 
         let clean = valid.filter { !$0.hasFPUTail }
         let pool = clean.count >= AnalysisThresholds.minimumMealEvents ? clean : valid
         let crs = pool.compactMap(\.effectiveCR).sorted()
         guard !crs.isEmpty else {
-            return SettingScore(
-                setting: .cr,
-                score: 0,
-                needsAdjustment: false,
-                confidence: .insufficient,
-                limitHitPercentage: 0,
-                cleanDataPointsTotal: 0,
-                timeBlockAnalyses: []
-            )
+            return SettingScore(setting: .cr, score: 0, needsAdjustment: false,
+                                confidence: .insufficient, limitHitPercentage: 0,
+                                cleanDataPointsTotal: 0, timeBlockAnalyses: [])
         }
 
         let medianCR = sortedMedian(crs)
@@ -169,38 +124,30 @@ struct TrioCRAnalyzer: CRAnalyzer {
         let needs = abs(bias) > AnalysisThresholds.isfRatioBias && !highVar
 
         let (sug, adjPct): (Decimal?, Decimal?)
-        if needs, profileCR > 0, medianCR > 0 {
+        if needs && profileCR > 0 && medianCR > 0 {
             let adj = profileCR * Decimal(0.8) + medianCR * Decimal(0.2)
-            sug = adj
-            adjPct = ((adj - profileCR) / profileCR) * 100
-        } else { sug = nil
-            adjPct = nil }
+            sug = adj; adjPct = ((adj - profileCR) / profileCR) * 100
+        } else { sug = nil; adjPct = nil }
 
         var conf: ConfidenceLevel = pool.count >= AnalysisThresholds.minimumMealEvents * 3 ? .high
             : pool.count >= AnalysisThresholds.minimumMealEvents ? .moderate : .low
-        if highVar, conf > .low { conf = .low }
-        if carbCountingConfidence == .rough, conf > .low { conf = .low }
+        if highVar && conf > .low { conf = .low }
+        if carbCountingConfidence == .rough && conf > .low { conf = .low }
 
-        return SettingScore(
-            setting: .cr,
-            score: abs(bias),
-            needsAdjustment: needs,
-            confidence: conf,
-            limitHitPercentage: cv * 100,
-            cleanDataPointsTotal: pool.count,
-            timeBlockAnalyses: [TimeBlockAnalysis(
-                blockLabel: "All meals", startMinutes: 0, endMinutes: 1440,
-                cleanDataPoints: pool.count, totalDataPoints: valid.count,
-                medianDeviation: 0, meanDeviation: 0, deviationP25: 0, deviationP75: 0,
-                medianSensitivityRatio: 1, sensitivityRatioAtMax: 0, sensitivityRatioAtMin: 0,
-                currentProfileValue: profileCR, suggestedValue: sug, adjustmentPercent: adjPct
-            )]
-        )
+        return SettingScore(setting: .cr, score: abs(bias), needsAdjustment: needs,
+                            confidence: conf, limitHitPercentage: cv * 100,
+                            cleanDataPointsTotal: pool.count,
+                            timeBlockAnalyses: [TimeBlockAnalysis(
+                                blockLabel: "All meals", startMinutes: 0, endMinutes: 1440,
+                                cleanDataPoints: pool.count, totalDataPoints: valid.count,
+                                medianDeviation: 0, meanDeviation: 0, deviationP25: 0, deviationP75: 0,
+                                medianSensitivityRatio: 1, sensitivityRatioAtMax: 0, sensitivityRatioAtMin: 0,
+                                currentProfileValue: profileCR, suggestedValue: sug, adjustmentPercent: adjPct
+                            )])
     }
 
     private func sortedMedian(_ v: [Decimal]) -> Decimal {
-        let s = v.sorted()
-        let m = s.count / 2
-        return s.count % 2 == 0 ? (s[m - 1] + s[m]) / 2 : s[m]
+        let s = v.sorted(); let m = s.count / 2
+        return s.count % 2 == 0 ? (s[m-1] + s[m]) / 2 : s[m]
     }
 }

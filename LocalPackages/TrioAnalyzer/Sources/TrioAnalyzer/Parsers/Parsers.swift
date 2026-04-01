@@ -7,6 +7,7 @@ protocol LogParser {
 }
 
 struct TrioLogParser: LogParser {
+
     private let timestampFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
@@ -44,12 +45,11 @@ struct TrioLogParser: LogParser {
                 braceDepth = jsonStart.filter({ $0 == "{" }).count - jsonStart.filter({ $0 == "}" }).count
                 isAccumulating = braceDepth > 0
 
-                if braceDepth == 0, !jsonBuffer.isEmpty {
+                if braceDepth == 0 && !jsonBuffer.isEmpty {
                     if let det = parseDeterminationJSON(jsonBuffer), let ts = determinationTimestamp {
                         results.append((ts, det))
                     }
-                    jsonBuffer = ""
-                    determinationTimestamp = nil
+                    jsonBuffer = ""; determinationTimestamp = nil
                 }
             } else {
                 let content = stripLogPrefix(from: line)
@@ -61,8 +61,7 @@ struct TrioLogParser: LogParser {
                     if let det = parseDeterminationJSON(jsonBuffer), let ts = determinationTimestamp {
                         results.append((ts, det))
                     }
-                    jsonBuffer = ""
-                    determinationTimestamp = nil
+                    jsonBuffer = ""; determinationTimestamp = nil
                 }
             }
         }
@@ -83,7 +82,7 @@ struct TrioLogParser: LogParser {
         // Primary: from JSON fields
         var isf = decimal(raw["ISF"])
         var deviation = decimal(raw["deviation"])
-        var profileISF: Decimal?
+        var profileISF: Decimal? = nil
 
         // Fallback: extract from reason string when JSON fields are missing
         // (e.g. v0.6.0.60 which omits ISF/deviation from the JSON)
@@ -97,8 +96,8 @@ struct TrioLogParser: LogParser {
         }
 
         // Extract AF, TDD, Basal ratio from reason for logarithmic analysis
-        let reasonAF = ReasonStringParser.extractDecimal(from: reason, prefix: "AF: ", terminator: ",;)")
-        let reasonTDD = ReasonStringParser.extractDecimal(from: reason, prefix: "TDD: ", terminator: " U")
+        let reasonAF       = ReasonStringParser.extractDecimal(from: reason, prefix: "AF: ",         terminator: ",;)")
+        let reasonTDD      = ReasonStringParser.extractDecimal(from: reason, prefix: "TDD: ",        terminator: " U")
         let reasonBasalRatio = ReasonStringParser.extractDecimal(from: reason, prefix: "Basal ratio: ", terminator: ",;)")
 
         let iobPredictions = (raw["predBGs"] as? [String: Any])?["IOB"] as? [Int]
@@ -151,7 +150,7 @@ struct TrioLogParser: LogParser {
                 b.dynamicRatio = extractDecimal(from: line, after: "set to", before: "with")
             }
             if line.contains("Dynamic ISF limited by") { b.dynamicISFLimited = true }
-            if line.contains("Override"), line.contains("active") {
+            if line.contains("Override") && line.contains("active") {
                 b.overrideActive = true
             }
             // Extract TDD: "Weighted TDD: X U" (dynamic ratios log) or "TDD: X U" (Nightscout upload reason)
@@ -172,7 +171,7 @@ struct TrioLogParser: LogParser {
         contexts: [ParsedLogContext]
     ) -> [LoopCycleData] {
         let sorted = contexts.sorted { $0.timestamp < $1.timestamp }
-        return determinations.map { ts, det in
+        return determinations.map { (ts, det) in
             let nearest = sorted.min(by: { abs($0.timestamp.timeIntervalSince(ts)) < abs($1.timestamp.timeIntervalSince(ts)) })
             let matched = nearest.flatMap { abs($0.timestamp.timeIntervalSince(ts)) < 180 ? $0 : nil }
             return LoopCycleData(determination: det, context: matched)
@@ -183,7 +182,7 @@ struct TrioLogParser: LogParser {
 
     private func extractTimestamp(from line: String) -> Date? {
         guard let space = line.firstIndex(of: " ") else { return nil }
-        return timestampFormatter.date(from: String(line[line.startIndex ..< space]))
+        return timestampFormatter.date(from: String(line[line.startIndex..<space]))
     }
 
     private func stripLogPrefix(from line: String) -> String {
@@ -235,18 +234,11 @@ private class ContextBuilder {
     init(timestamp: Date) { self.timestamp = timestamp }
 
     func build() -> ParsedLogContext {
-        ParsedLogContext(
-            timestamp: timestamp,
-            uamImpact: uamImpact,
-            uamDuration: uamDuration,
-            dynamicISFActive: dynamicISFActive,
-            dynamicRatio: dynamicRatio,
-            dynamicISFLimited: dynamicISFLimited,
-            overrideActive: overrideActive,
-            overridePercentage: overridePercentage,
-            tempTargetActive: tempTargetActive,
-            tdd: tdd
-        )
+        ParsedLogContext(timestamp: timestamp, uamImpact: uamImpact, uamDuration: uamDuration,
+                         dynamicISFActive: dynamicISFActive, dynamicRatio: dynamicRatio,
+                         dynamicISFLimited: dynamicISFLimited, overrideActive: overrideActive,
+                         overridePercentage: overridePercentage, tempTargetActive: tempTargetActive,
+                         tdd: tdd)
     }
 }
 
@@ -257,6 +249,7 @@ protocol SettingsParser {
 }
 
 struct TrioSettingsCSVParser: SettingsParser {
+
     /// Detect actual Dynamic ISF mode from log reason strings.
     /// This corrects for known CSV export bugs where the mode is misreported.
     ///
@@ -290,9 +283,9 @@ struct TrioSettingsCSVParser: SettingsParser {
         let hasLogarithmicFull = combined.contains("Logarithmic formula")
         let hasDynamicOffFull = combined.contains("Dynamic ISF: Off") || combined.contains("Dynamic ISF disabled")
 
-        if hasSigmoidFull, !hasLogarithmicFull { return .sigmoid }
-        if hasLogarithmicFull, !hasSigmoidFull { return .logarithmic }
-        if hasDynamicOffFull, !hasSigmoidFull, !hasLogarithmicFull { return .disabled }
+        if hasSigmoidFull && !hasLogarithmicFull { return .sigmoid }
+        if hasLogarithmicFull && !hasSigmoidFull { return .logarithmic }
+        if hasDynamicOffFull && !hasSigmoidFull && !hasLogarithmicFull { return .disabled }
         return nil
     }
 
@@ -341,8 +334,8 @@ struct TrioSettingsCSVParser: SettingsParser {
                     if parts.count == 2, let value = Decimal(string: val.value) {
                         // Handle AM/PM if present
                         var hour = parts[0]
-                        if p[2].contains("PM"), hour != 12 { hour += 12 }
-                        if p[2].contains("AM"), hour == 12 { hour = 0 }
+                        if p[2].contains("PM") && hour != 12 { hour += 12 }
+                        if p[2].contains("AM") && hour == 12 { hour = 0 }
                         entries.append(ScheduleEntry(time: time, offsetMinutes: hour * 60 + parts[1], value: value))
                     }
                 }
@@ -426,20 +419,18 @@ struct TrioSettingsCSVParser: SettingsParser {
         var inQuotes = false
 
         for (i, line) in content.components(separatedBy: .newlines).enumerated() {
-            if i == 0, line.contains("Setting Category") { continue }
+            if i == 0 && line.contains("Setting Category") { continue }
             if line.trimmingCharacters(in: .whitespaces).isEmpty { continue }
 
             for ch in line {
                 if ch == "\"" { inQuotes.toggle() }
-                else if ch == ",", !inQuotes { currentRow.append(field)
-                    field = "" } else { field.append(ch) }
+                else if ch == "," && !inQuotes { currentRow.append(field); field = "" }
+                else { field.append(ch) }
             }
 
             if !inQuotes {
-                currentRow.append(field)
-                field = ""
-                rows.append(currentRow)
-                currentRow = []
+                currentRow.append(field); field = ""
+                rows.append(currentRow); currentRow = []
             } else { field.append("\n") }
         }
         return rows

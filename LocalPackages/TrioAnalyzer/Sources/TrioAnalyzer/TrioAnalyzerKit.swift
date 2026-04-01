@@ -1,6 +1,7 @@
 import Foundation
 
 public enum TrioAnalyzerKit {
+
     /// Run the full analysis pipeline.
     public static func analyze(
         logContents: [String],
@@ -23,11 +24,9 @@ public enum TrioAnalyzerKit {
 
         // Correct Dynamic ISF mode for known CSV bugs
         if let version = settings.appVersion,
-           KnownVersionIssues.csvDynamicISFUnreliable.contains(version)
-        {
+           KnownVersionIssues.csvDynamicISFUnreliable.contains(version) {
             if let detected = TrioSettingsCSVParser.detectDynamicISFFromLogs(logContents),
-               detected != settings.dynamicISFMode
-            {
+               detected != settings.dynamicISFMode {
                 // Reconstruct settings with corrected mode
                 settings = correctedSettings(settings, dynamicISFMode: detected)
             }
@@ -75,6 +74,28 @@ public enum TrioAnalyzerKit {
         return analyzer.analyze(cycles: cycles, settings: settings, userProfile: userProfile)
     }
 
+    /// Parse a Trio settings export CSV into a `TrioSettingsProfile`.
+    /// Returns nil if the CSV cannot be parsed.
+    /// Use this when constructing cycles from an external source (e.g. Nightscout)
+    /// and calling `analyze(cycles:settings:mealHandling:carbCounting:)` directly.
+    public static func parseSettings(csvContent: String) -> TrioSettingsProfile? {
+        TrioSettingsCSVParser().parse(csvContent: csvContent)
+    }
+
+    /// Returns a copy of `settings` with `dynamicISFMode` replaced.
+    /// Use this to correct a misreported Dynamic ISF mode in the settings CSV
+    /// when log files are unavailable (e.g. the Nightscout CLI path).
+    public static func overrideDynamicISFMode(in settings: TrioSettingsProfile, mode: DynamicISFMode) -> TrioSettingsProfile {
+        correctedSettings(settings, dynamicISFMode: mode)
+    }
+
+    /// Returns true if this version is known to misreport Dynamic ISF mode in the settings CSV.
+    /// When true and no log files are available, prompt the user to specify the correct mode
+    /// via --dynamic-isf.
+    public static func hasKnownCSVDynamicISFBug(version: String) -> Bool {
+        KnownVersionIssues.csvDynamicISFUnreliable.contains(version)
+    }
+
     /// Validate inputs before running analysis.
     public static func validateInputs(logContents: [String], settingsCSV: String) -> [String] {
         var issues: [String] = []
@@ -95,29 +116,27 @@ public enum TrioAnalyzerKit {
             if settings.dia < AnalysisThresholds.minimumDIA {
                 issues.append(
                     "DIA is set to \(settings.dia) hours. Analysis requires DIA ≥ \(AnalysisThresholds.minimumDIA) hours. " +
-                        "Trio's exponential insulin model is calibrated for 9–10 hours — a lower value causes IOB to be " +
-                        "significantly understated, making all results unreliable."
+                    "Trio's exponential insulin model is calibrated for 9–10 hours — a lower value causes IOB to be " +
+                    "significantly understated, making all results unreliable."
                 )
             }
             if let name = settings.insulinName, name.lowercased().contains("lyumjev"),
-               !settings.useCustomPeakTime
-            {
+               !settings.useCustomPeakTime {
                 issues.append(
                     "Lyumjev detected without a custom peak time. Lyumjev's peak (~45 min) is faster than the " +
-                        "ultra-rapid default (55 min). Enable 'Use Custom Peak Time' in Trio and set it to 45 minutes " +
-                        "for more accurate analysis."
+                    "ultra-rapid default (55 min). Enable 'Use Custom Peak Time' in Trio and set it to 45 minutes " +
+                    "for more accurate analysis."
                 )
             }
             // Warn when known CSV version bug causes Dynamic ISF mode to be misreported
             if let version = settings.appVersion,
                KnownVersionIssues.csvDynamicISFUnreliable.contains(version),
                let detected = TrioSettingsCSVParser.detectDynamicISFFromLogs(logContents),
-               detected != settings.dynamicISFMode
-            {
+               detected != settings.dynamicISFMode {
                 issues.append(
                     "Dynamic ISF mode in CSV (\(settings.dynamicISFMode.rawValue)) appears to be misreported — " +
-                        "a known export bug in v\(version). Log-based detection indicates: \(detected.rawValue). " +
-                        "Analysis will use the log-detected mode."
+                    "a known export bug in v\(version). Log-based detection indicates: \(detected.rawValue). " +
+                    "Analysis will use the log-detected mode."
                 )
             }
         } else {
@@ -156,48 +175,23 @@ public enum TrioAnalyzerKit {
     }
 
     private static func errorReport(_ message: String) -> AnalysisReport {
-        let empty = SettingScore(
-            setting: .basal,
-            score: 0,
-            needsAdjustment: false,
-            confidence: .insufficient,
-            limitHitPercentage: 0,
-            cleanDataPointsTotal: 0,
-            timeBlockAnalyses: []
-        )
-        return AnalysisReport(
-            analysisDate: Date(),
-            dataRangeStart: Date(),
-            dataRangeEnd: Date(),
-            totalLoopCycles: 0,
-            settingsTimestamp: nil,
-            userProfile: UserProfile(mealHandling: .varies, carbCountingConfidence: .notApplicable),
-            detectedUserType: DetectedUserType(
-                hasCarbEntries: false,
-                hasFPUEntries: false,
-                hasManualBoluses: false,
-                medianCarbEntrySize: nil,
-                uamActivePercentage: 0,
-                inferredType: .varies,
-                agreesWithUserReport: true,
-                disagreementNote: nil
-            ),
-            dynamicISFMode: .disabled,
-            basalScore: empty,
-            isfScore: SettingScore(
-                setting: .isf,
-                score: 0,
-                needsAdjustment: false,
-                confidence: .insufficient,
-                limitHitPercentage: 0,
-                cleanDataPointsTotal: 0,
-                timeBlockAnalyses: []
-            ),
-            crScore: nil,
-            prioritySetting: nil,
-            recommendations: [],
-            mealEvents: nil,
-            warnings: [AnalysisWarning(severity: .critical, message: message)]
-        )
+        let empty = SettingScore(setting: .basal, score: 0, needsAdjustment: false,
+                                  confidence: .insufficient, limitHitPercentage: 0,
+                                  cleanDataPointsTotal: 0, timeBlockAnalyses: [])
+        return AnalysisReport(analysisDate: Date(), dataRangeStart: Date(), dataRangeEnd: Date(),
+                               totalLoopCycles: 0, settingsTimestamp: nil,
+                               userProfile: UserProfile(mealHandling: .varies, carbCountingConfidence: .notApplicable),
+                               detectedUserType: DetectedUserType(hasCarbEntries: false, hasFPUEntries: false,
+                                   hasManualBoluses: false, medianCarbEntrySize: nil, uamActivePercentage: 0,
+                                   inferredType: .varies, agreesWithUserReport: true, disagreementNote: nil),
+                               dynamicISFMode: .disabled,
+                               glycemicMetrics: nil,
+                               basalScore: empty,
+                               isfScore: SettingScore(setting: .isf, score: 0, needsAdjustment: false,
+                                   confidence: .insufficient, limitHitPercentage: 0,
+                                   cleanDataPointsTotal: 0, timeBlockAnalyses: []),
+                               crScore: nil, prioritySetting: nil, recommendations: [],
+                               mealEvents: nil,
+                               warnings: [AnalysisWarning(severity: .critical, message: message)])
     }
 }
