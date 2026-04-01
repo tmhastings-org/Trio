@@ -22,16 +22,6 @@ public enum TrioAnalyzerKit {
             return errorReport("No OREF DETERMINATION entries found in log files.")
         }
 
-        // Correct Dynamic ISF mode for known CSV bugs
-        if let version = settings.appVersion,
-           KnownVersionIssues.csvDynamicISFUnreliable.contains(version) {
-            if let detected = TrioSettingsCSVParser.detectDynamicISFFromLogs(logContents),
-               detected != settings.dynamicISFMode {
-                // Reconstruct settings with corrected mode
-                settings = correctedSettings(settings, dynamicISFMode: detected)
-            }
-        }
-
         let userProfile = UserProfile(mealHandling: mealHandling, carbCountingConfidence: carbCounting)
 
         let analyzer = TrioSettingsAnalyzer(
@@ -89,13 +79,6 @@ public enum TrioAnalyzerKit {
         correctedSettings(settings, dynamicISFMode: mode)
     }
 
-    /// Returns true if this version is known to misreport Dynamic ISF mode in the settings CSV.
-    /// When true and no log files are available, prompt the user to specify the correct mode
-    /// via --dynamic-isf.
-    public static func hasKnownCSVDynamicISFBug(version: String) -> Bool {
-        KnownVersionIssues.csvDynamicISFUnreliable.contains(version)
-    }
-
     /// Validate inputs before running analysis.
     public static func validateInputs(logContents: [String], settingsCSV: String) -> [String] {
         var issues: [String] = []
@@ -126,17 +109,6 @@ public enum TrioAnalyzerKit {
                     "Lyumjev detected without a custom peak time. Lyumjev's peak (~45 min) is faster than the " +
                     "ultra-rapid default (55 min). Enable 'Use Custom Peak Time' in Trio and set it to 45 minutes " +
                     "for more accurate analysis."
-                )
-            }
-            // Warn when known CSV version bug causes Dynamic ISF mode to be misreported
-            if let version = settings.appVersion,
-               KnownVersionIssues.csvDynamicISFUnreliable.contains(version),
-               let detected = TrioSettingsCSVParser.detectDynamicISFFromLogs(logContents),
-               detected != settings.dynamicISFMode {
-                issues.append(
-                    "Dynamic ISF mode in CSV (\(settings.dynamicISFMode.rawValue)) appears to be misreported — " +
-                    "a known export bug in v\(version). Log-based detection indicates: \(detected.rawValue). " +
-                    "Analysis will use the log-detected mode."
                 )
             }
         } else {

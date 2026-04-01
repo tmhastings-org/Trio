@@ -452,8 +452,6 @@ public enum WarningSeverity: String, Codable { case info; case caution; case cri
 // MARK: - Known Version Issues
 
 public enum KnownVersionIssues {
-    /// CSV may misreport Dynamic ISF mode; detect from log reason strings instead
-    public static let csvDynamicISFUnreliable: Set<String> = ["0.6.0.61"]
     /// ISF, deviation, BGI missing from JSON; extract from reason string
     public static let missingDeterminationFields: Set<String> = ["0.6.0.60"]
     /// No standalone "UAM Impact:" log lines; infer from reason string

@@ -250,45 +250,6 @@ protocol SettingsParser {
 
 struct TrioSettingsCSVParser: SettingsParser {
 
-    /// Detect actual Dynamic ISF mode from log reason strings.
-    /// This corrects for known CSV export bugs where the mode is misreported.
-    ///
-    /// Strategy: look at only the most recent cycles from logContents[0] (the current log file).
-    /// Scanning the full combined log would falsely detect a previously-active mode that the user
-    /// has since disabled — e.g., v0.6.0.61 users who turned off Dynamic ISF still have old
-    /// "Logarithmic formula" lines in their logs from before the change.
-    static func detectDynamicISFFromLogs(_ logContents: [String]) -> DynamicISFMode? {
-        guard let recentLog = logContents.first else { return nil }
-
-        // Scan only the last 500 lines of the most recent log file.
-        // At ~5 min/cycle and ~8 lines/cycle, this covers ~5 hours of recent data —
-        // enough to see Dynamic ISF activity if it's currently active.
-        let lines = recentLog.components(separatedBy: "\n")
-        let recentContent = lines.suffix(500).joined(separator: "\n")
-
-        let hasSigmoid = recentContent.contains("Sigmoid")
-        let hasLogarithmic = recentContent.contains("Logarithmic formula")
-
-        if hasSigmoid && !hasLogarithmic { return .sigmoid }
-        if hasLogarithmic && !hasSigmoid { return .logarithmic }
-        if hasLogarithmic && hasSigmoid { return nil } // Ambiguous — can't distinguish
-
-        // Neither mode indicator found in recent cycles.
-        // If OREF DETERMINATION entries are present, mode is disabled (static ISF).
-        if recentContent.contains("OREF DETERMINATION:") { return .disabled }
-
-        // No recent cycle data — fall back to full combined log scan.
-        let combined = logContents.joined()
-        let hasSigmoidFull = combined.contains("Sigmoid")
-        let hasLogarithmicFull = combined.contains("Logarithmic formula")
-        let hasDynamicOffFull = combined.contains("Dynamic ISF: Off") || combined.contains("Dynamic ISF disabled")
-
-        if hasSigmoidFull && !hasLogarithmicFull { return .sigmoid }
-        if hasLogarithmicFull && !hasSigmoidFull { return .logarithmic }
-        if hasDynamicOffFull && !hasSigmoidFull && !hasLogarithmicFull { return .disabled }
-        return nil
-    }
-
     func parse(csvContent: String) -> TrioSettingsProfile? {
         let content = csvContent.hasPrefix("\u{FEFF}") ? String(csvContent.dropFirst()) : csvContent
         let rows = parseCSVRows(content)
