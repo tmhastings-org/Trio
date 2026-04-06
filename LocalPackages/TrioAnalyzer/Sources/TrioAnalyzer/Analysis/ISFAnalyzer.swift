@@ -94,41 +94,41 @@ struct TrioISFAnalyzer: ISFAnalyzer {
             }
         }
 
-        // --- Synthesize: formula signal + limit-hitting corroboration ---
+        // --- Synthesize: limit-hitting is the gate; formula informs direction and magnitude ---
+        //
+        // The formula (ratio = 1.0 at 150 mg/dL) is only valid when profile ISF is calibrated
+        // at 150 mg/dL. In practice many users set a conservative profile ISF and compensate
+        // with a higher AF — a valid configuration that produces good TIR but causes the formula
+        // to recommend a large AF reduction with no clinical basis. A user getting 95%+ TIR with
+        // ratio > 1.0 at 150 is NOT miscalibrated — their system is working.
+        //
+        // Limit-hitting is the directly observable signal: if the ratio is frequently clamped at
+        // autosensMax or autosensMin, the AF is genuinely driving the formula outside its useful
+        // range and needs correction. The formula then informs HOW MUCH to adjust.
         var needsAdjustment = false
         var afDirection: AFDirection? = nil
         var confidence: ConfidenceLevel = .low
 
-        if let suggested = suggestedAF {
-            let afDiff = (suggested - currentAF) / currentAF  // signed fraction
-            let afDiffMagnitude = abs(afDiff)
-            let formulaDirection: AFDirection = afDiff > 0 ? .increase : .decrease
-
-            // In logarithmic mode, sensitivityRatio at autosensMax means the formula is producing
-            // an unnaturally high ratio — AF is too HIGH and should decrease (not increase).
-            // Ratio at autosensMin means the formula produces too low a ratio — AF too low, should increase.
-            // This is counter-intuitive but follows from: newRatio = profileISF×AF×TDD×ln(BG/f+1)/1800.
-            let limitDirectionMatchesFormula = limitsFrequentlyHit &&
-                ((atMax > atMin && formulaDirection == .decrease) ||  // both: AF too high
-                 (atMin > atMax && formulaDirection == .increase))    // both: AF too low
-
-            if afDiffMagnitude > AnalysisThresholds.afAdjustmentThreshold {
-                needsAdjustment = true
-                afDirection = formulaDirection
-                // Confidence boosted when limit-hitting corroborates the formula direction
-                confidence = limitDirectionMatchesFormula ? .high : .moderate
-            }
-            // else: formula says AF is within threshold — trust it, no adjustment recommended.
-            // Limit-hitting in this case is likely driven by BG excursions (e.g., unresolved basal
-            // error), not by AF miscalibration. The formula anchors to the target BG; if BG is
-            // consistently off-target for other reasons, the limit signal is confounded.
-        } else if limitsFrequentlyHit {
-            // No TDD data — fall back to limit-hitting alone
-            // In logarithmic mode: ratio at max → AF too high (decrease); ratio at min → AF too low (increase).
+        if limitsFrequentlyHit {
             needsAdjustment = true
-            afDirection = atMax > atMin ? .decrease : .increase
-            confidence = limitPct > 40 ? .moderate : .low
+            // In logarithmic mode: ratio at autosensMax → formula too aggressive → AF too high → decrease.
+            //                      ratio at autosensMin → formula too weak → AF too low → increase.
+            let limitDirection: AFDirection = atMax > atMin ? .decrease : .increase
+
+            if let suggested = suggestedAF {
+                let afDiff = (suggested - currentAF) / currentAF
+                let formulaDirection: AFDirection = afDiff > 0 ? .increase : .decrease
+                afDirection = formulaDirection
+                // High confidence when formula and limit signal agree; moderate when they diverge.
+                confidence = formulaDirection == limitDirection ? .high : .moderate
+            } else {
+                // No TDD data — direction from limit signal alone.
+                afDirection = limitDirection
+                confidence = limitPct > 40 ? .moderate : .low
+            }
         }
+        // No limit-hitting: even if the formula suggests a different AF, there is no observable
+        // evidence of miscalibration. Do not recommend a change.
 
         return SettingScore(
             setting: .adjustmentFactor,
