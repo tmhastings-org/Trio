@@ -25,16 +25,16 @@ struct TrioBasalAnalyzer: BasalAnalyzer {
         let deviationSignal = maxMedianDev > AnalysisThresholds.basalDeviationMagnitude
 
         // Secondary signal: sustained autosens ratio bias.
-        // When basal is slightly off, autosens compensates by running sensitivityRatio above or
-        // below 1.0. The deviation stays near zero because autosens is doing the work — masking
-        // the problem from deviation-based analysis. A ratio consistently ≥ 5% from 1.0 across
-        // multiple blocks is a reliable signal that profile basal needs adjustment.
-        // ISF analysis cannot be trusted until basal is confirmed, so this must be detected
-        // before ISF recommendations are generated.
+        // Only valid for static ISF (Dynamic ISF disabled). In logarithmic and sigmoid modes,
+        // sensitivityRatio is formula-driven (TDD × AF × current BG), not a reflection of
+        // accumulated deviation-based autosensitivity. A ratio bias in those modes indicates
+        // the formula's output at typical BG levels — not that autosens is compensating for
+        // a basal problem. For Dynamic ISF users, deviation-based analysis is the only valid signal.
         let ratioBiasBlocks = blocksWithData.filter {
             abs(NSDecimalNumber(decimal: $0.medianSensitivityRatio).doubleValue - 1.0) >= 0.05
         }
         let ratioDirection: Int? = {
+            guard settings.dynamicISFMode == .disabled else { return nil }
             guard ratioBiasBlocks.count >= max(1, blocksWithData.count / 2) else { return nil }
             let above = ratioBiasBlocks.filter { $0.medianSensitivityRatio > 1 }.count
             let below = ratioBiasBlocks.filter { $0.medianSensitivityRatio < 1 }.count
@@ -54,10 +54,9 @@ struct TrioBasalAnalyzer: BasalAnalyzer {
             let ratio = NSDecimalNumber(decimal: block.medianSensitivityRatio).doubleValue
             guard abs(ratio - 1.0) >= 0.05 else { return block }
 
-            // 50% step toward the ratio-implied basal.
-            // Unlike deviation-based adjustments (empirical, noisier), ratio bias is a clean
-            // directional signal — autosens is consistently compensating by a known amount.
-            // 50% is still conservative but large enough to survive 0.05 U/hr rounding.
+            // 50% step toward the ratio-implied basal (static ISF only).
+            // Ratio bias is a directional signal — the deviation stays quiet because autosens
+            // is absorbing the offset. 50% is conservative but large enough to survive rounding.
             let implied = block.currentProfileValue * block.medianSensitivityRatio
             let conservative = block.currentProfileValue + (implied - block.currentProfileValue) * Decimal(0.5)
             let suggested = roundBasal(conservative)
