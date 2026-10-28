@@ -16,7 +16,7 @@ env:
 jobs:
   # use a single runner for these sequential steps
   check_status:
-    runs-on: xcode-27
+    runs-on: xcode-latest
     name: Check status to decide whether to build
     permissions:
       contents: write
